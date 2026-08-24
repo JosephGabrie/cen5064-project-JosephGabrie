@@ -1,16 +1,24 @@
-# [Your Project Name]
+# [School Information System]
 
 <!-- CI badge: after Session 4, replace ORG/REPO and the workflow filename, then uncomment:
 ![CI](https://github.com/ORG/REPO/actions/workflows/ci.yml/badge.svg)
 -->
 
-**Student:** [Your Name] · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@partner-github-username]
+**Student:** Joseph Gabrie · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@partner-github-username]
 
 ## Project (approval paragraph — write this by Sun Aug 30)
 
 [One paragraph: What is the system? Who is it for? What are its 3–4 core features?
 This paragraph is your approval request — see the Project Brief, Section 2.]
 
+My project is a school information system(ISS) built for a k-8 school. 
+The features that it needs to have are:
+1. Role based routing
+2. Attendance system
+3. Assignmnet/Quiz system
+4. Clean dashboard with a calendar to display future assignments
+
+My tech stack will be to use React for my front-end and Convex for my back-end.
 ## How to run
 
 ```
