@@ -8,9 +8,6 @@
 
 ## Project (approval paragraph — write this by Sun Aug 30)
 
-[One paragraph: What is the system? Who is it for? What are its 3–4 core features?
-This paragraph is your approval request — see the Project Brief, Section 2.]
-
 My project is a school information system(ISS) built for a k-8 school. 
 The features that it needs to have are:
 1. Role based routing
