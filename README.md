@@ -29,11 +29,11 @@ instructor will follow it literally on conference days.]
 ### Tier breakdown (Session 2 studio)
 
 | Tier | Responsibilities in THIS system |
-|------|--------------------------------|
-| Presentation | [what your UI layer does] |
-| Service | [what your use-case/orchestration layer does] |
-| Domain | [your entities and business rules] |
-| Data | [how and where data is stored] |
+|------|------| --------------------------------|
+| Presentation | Present classes, show grades, show student attendace. |
+| Service | create/submit an assignment| Create a class announcement| view grades|
+| Domain | What grades are I.E., A: 100 - 90, B:89-80, etc. School calendar |
+| Data | assignments, grades, user info, etc stored in the mysql database |
 
 ### C4 — Context & Container (Session 3 studio)
 
