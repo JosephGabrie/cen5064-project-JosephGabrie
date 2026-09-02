@@ -10,12 +10,12 @@
 
 My project is a school information system(ISS) built for a k-8 school. 
 The features that it needs to have are:
-1. Role based routing
+1. AI submission detection System
 2. Attendance system
 3. Assignmnet/Quiz system
-4. Clean dashboard with a calendar to display future assignments
+4. Notification System
 
-My tech stack will be to use React for my front-end and Convex for my back-end.
+My tech stack will be to use React for my FrontEnd, Golang for my backend, and MySQL for my Database.
 ## How to run
 
 ```
@@ -30,10 +30,10 @@ instructor will follow it literally on conference days.]
 
 | Tier | Responsibilities in THIS system |
 |------|------| --------------------------------|
-| Presentation | Present classes, show grades, show student attendace. |
-| Service | create/submit an assignment| Create a class announcement| view grades|
-| Domain | What grades are I.E., A: 100 - 90, B:89-80, etc. School calendar |
-| Data | assignments, grades, user info, etc stored in the mysql database |
+| Presentation | Present classes, show grades, show student attendance. |
+| Service | create/submit an assignment| Create a class announcement| view grades|direct user to their respective page depending if they are a parent, teacher, student, and or admin. |
+| Domain | What grades are I.E., A: 100 - 90, B:89-80, etc. Students can't have two classes that overlap in time| Students can't take classes without meeting the prerequisites |
+| Data | assignments, grades, user info, etc stored in the MySQL database |
 
 ### C4 — Context & Container (Session 3 studio)
 
