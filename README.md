@@ -25,18 +25,16 @@ instructor will follow it literally on conference days.]
 ```
 
 ## Architecture
-
 ### Tier breakdown (Session 2 studio)
 
 | Tier | Responsibilities in THIS system |
-|------|------| --------------------------------|
-| Presentation | Present classes, show grades, show student attendance. |
-| Service | create/submit an assignment| Create a class announcement| view grades|direct user to their respective page depending if they are a parent, teacher, student, and or admin. |
-| Domain | What grades are I.E., A: 100 - 90, B:89-80, etc. Students can't have two classes that overlap in time| Students can't take classes without meeting the prerequisites |
-| Data | assignments, grades, user info, etc stored in the MySQL database |
+|---|---|
+| **Presentation** | Present classes, show grades, show student attendance. |
+| **Service** | Create/submit an assignment, create a class announcement, view grades, direct user to their respective page depending if they are a parent, teacher, student, or admin. |
+| **Domain** | Define grade scales (e.g., A: 100 - 90, B: 89 - 80), ensure students cannot have two classes that overlap in time, prevent students from taking classes without meeting prerequisites. |
+| **Data** | Store assignments, grades, user info, etc., in the MySQL database. |
 
 ### C4 — Context & Container (Session 3 studio)
-
 ```mermaid
 %% Replace this placeholder with YOUR system's context diagram.
 flowchart TB
