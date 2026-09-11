@@ -12,7 +12,7 @@ const legends = [
 const daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 // Generate the 42 days for the calendar grid (Sept 2026)
-const calendarDays = [
+const calendarDays: Array<{ date: number; isCurrentMonth: boolean; isToday?: boolean }> = [
   { date: 30, isCurrentMonth: false },
   { date: 31, isCurrentMonth: false },
   ...Array.from({ length: 30 }, (_, i) => ({

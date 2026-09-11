@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { cn } from "@/lib/utils";
+import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
 const roboto = Roboto({ subsets: ['latin'], variable: '--font-sans' })
 
@@ -25,17 +26,19 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", roboto.variable)}
     >
       <body>
-        <ThemeProvider>
-          <SidebarProvider>
-            <AppSidebar />
-            <main className="w-full">
-              <SidebarTrigger />
-              <div className="min-h-screen w-full bg-white bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:16px_16px] text-slate-900 dark:text-slate-100">
-                {children}
-              </div>
-            </main>
-          </SidebarProvider>
-        </ThemeProvider>
+        <AuthKitProvider>
+          <ThemeProvider>
+            <SidebarProvider>
+              <AppSidebar />
+              <main className="w-full">
+                <SidebarTrigger />
+                <div className="min-h-screen w-full bg-white bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:16px_16px] text-slate-900 dark:text-slate-100">
+                  {children}
+                </div>
+              </main>
+            </SidebarProvider>
+          </ThemeProvider>
+        </AuthKitProvider>
       </body>
     </html>
   )
