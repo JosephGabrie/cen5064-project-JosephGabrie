@@ -71,7 +71,7 @@ flowchart TB
         
         domain["Business Logic (Domain Tier)<br/>Grade scales, prerequisite checks, time overlap rules"]
         
-        db[("Postgresql Database (Data Tier)<br/>Store assignments, grades, user info")]
+        db[("PostgreSQL Database (Data Tier)<br/>Store assignments, grades, user info")]
 
         ui -->|API Calls| api
         api -->|Validates actions against| domain
