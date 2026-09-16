@@ -1,16 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function SignInPage() {
   const { login } = useAuth();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    login();
+    setError("");
+    setIsLoading(true);
+
+    const result = await login(identifier, password);
+    
+    if (!result.success) {
+      setError(result.error || "Failed to sign in");
+      setIsLoading(false);
+    }
+    // If successful, the auth context will update and the layout/router should handle the redirect or re-render
   };
 
   return (
@@ -37,16 +50,25 @@ export function SignInPage() {
           <p className="text-slate-500">Sign in to your MTV School account</p>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-600 text-center">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-5">
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-slate-700">
-              Email Address
+              Identifier (Email or ID)
             </label>
             <Input
-              type="email"
-              placeholder="you@example.com"
+              type="text"
+              placeholder="you@example.com or 123456"
               required
               className="w-full"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           <div className="space-y-1.5">
@@ -58,13 +80,17 @@ export function SignInPage() {
               placeholder="••••••••"
               required
               className="w-full"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           <Button
             type="submit"
+            disabled={isLoading}
             className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-base font-semibold shadow-sm transition-all"
           >
-            Sign In
+            {isLoading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
       </div>

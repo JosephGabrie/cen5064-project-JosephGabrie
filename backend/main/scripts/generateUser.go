@@ -37,7 +37,25 @@ func generateUserID(user User) string {
 }
 
 func generatePassword(user User) string {
-	password := user.Birthday + user.FirstName[:1] + user.LastName[:1]
+	formattedBirthday := user.Birthday
+	if len(user.Birthday) >= 10 {
+		// Assuming YYYY-MM-DD format (e.g. 1990-05-15)
+		// Extract to MMDDYY: month (5:7) + day (8:10) + year (2:4)
+		if user.Birthday[4] == '-' && user.Birthday[7] == '-' {
+			formattedBirthday = user.Birthday[5:7] + user.Birthday[8:10] + user.Birthday[2:4]
+		}
+	}
+
+	firstInitial := ""
+	if len(user.FirstName) > 0 {
+		firstInitial = user.FirstName[:1]
+	}
+	lastInitial := ""
+	if len(user.LastName) > 0 {
+		lastInitial = user.LastName[:1]
+	}
+
+	password := formattedBirthday + firstInitial + lastInitial
 	hashPass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal(err)

@@ -1,16 +1,33 @@
 [
   {
-    "FirstName": "Alice",
-    "LastName": "Smith",
-    "Birthday": "1990-05-15",
-    "Address": "123 Main St",
-    "Role": "patient"
+    "FirstName": "Sammy",
+    "LastName": "Student",
+    "Birthday": "2010-04-12",
+    "Address": "123 School Ln",
+    "Role": "student"
   },
   {
-    "FirstName": "Bob",
-    "LastName": "Jones",
-    "Birthday": "1985-11-20",
-    "Address": "456 Elm St",
-    "Role": "admin"
+    "FirstName": "Timmy",
+    "LastName": "Teacher",
+    "Birthday": "1980-08-25",
+    "Address": "456 Educator Blvd",
+    "Role": "teacher",
+    "Email": "teacher@school.com"
+  },
+  {
+    "FirstName": "Patty",
+    "LastName": "Parent",
+    "Birthday": "1985-02-14",
+    "Address": "789 Family Rd",
+    "Role": "parent",
+    "Email": "parent@home.com"
+  },
+  {
+    "FirstName": "Adam",
+    "LastName": "Admin",
+    "Birthday": "1975-11-30",
+    "Address": "101 Office Pkwy",
+    "Role": "admin",
+    "Email": "admin@school.com"
   }
 ]

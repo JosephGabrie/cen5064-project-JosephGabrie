@@ -2,9 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+interface User {
+  id: string;
+  role: string;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
-  login: () => void;
+  user: User | null;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -12,35 +18,59 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    // Only check auth status after hydration to avoid mismatch
     setIsMounted(true);
-    
-    // For now, check local storage so login persists through refresh
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true";
-    if (loggedIn) {
-      setIsAuthenticated(true);
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      } catch (e) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
     }
   }, []);
 
-  const login = () => {
-    // TODO: Replace with your actual login logic (API call, token validation, etc.)
-    localStorage.setItem("isLoggedIn", "true");
-    setIsAuthenticated(true);
+  const login = async (identifier: string, password: string) => {
+    try {
+      const response = await fetch("http://localhost:6769/api/login/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || "Login failed" };
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setUser(data.user);
+      setIsAuthenticated(true);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: "Network error. Please ensure backend is running." };
+    }
   };
 
   const logout = () => {
-    // TODO: Replace with your actual logout logic
-    localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
     setIsAuthenticated(false);
   };
 
-  if (!isMounted) return null; // Avoid hydration mismatch on the first render
+  if (!isMounted) return null;
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

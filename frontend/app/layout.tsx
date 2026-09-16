@@ -27,7 +27,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("antialiased", fontMono.variable, "font-sans", roboto.variable)}
     >
-      <body>
+      <body suppressHydrationWarning>
         <AuthProvider>
           <AuthGuard>
             <ThemeProvider>

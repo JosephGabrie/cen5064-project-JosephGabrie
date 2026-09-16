@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 
+	"MTVSChool/auth"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 )
@@ -30,7 +32,7 @@ func connect() (*pgx.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return conn, nil
 }
 
@@ -43,6 +45,13 @@ func main() {
 	fmt.Println("Successfully connected to the database!")
 
 	app := fiber.New()
+
+	// Enable CORS for frontend requests
+	// TODO Set up CORS to only work with frontend
+	app.Use(cors.New())
+
+	// Setup Authentication Routes
+	auth.SetupAuthRoutes(app, conn)
 
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Hello World")
