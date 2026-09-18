@@ -9,11 +9,11 @@ import (
 	"MTVSChool/auth"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
-func connect() (*pgx.Conn, error) {
+func connect() (*pgxpool.Pool, error) {
 	// Try to load .env from different possible working directories
 	err := godotenv.Load("../.env")
 	if err != nil {
@@ -28,12 +28,13 @@ func connect() (*pgx.Conn, error) {
 		return nil, fmt.Errorf("SUPABASE_CONNECTION_STRING environment variable is not set")
 	}
 
-	conn, err := pgx.Connect(context.Background(), connString)
+	// Use pgxpool for automatic reconnection and connection pooling
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		return nil, err
 	}
 
-	return conn, nil
+	return pool, nil
 }
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
-	defer conn.Close(context.Background())
+	defer conn.Close()
 	fmt.Println("Successfully connected to the database!")
 
 	app := fiber.New()

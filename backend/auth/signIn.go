@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -16,7 +17,7 @@ type LoginRequest struct {
 	Password   string `json:"password"`
 }
 
-func SetupAuthRoutes(app *fiber.App, conn *pgx.Conn) {
+func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 	app.Post("/api/login/", func(c fiber.Ctx) error {
 		var req LoginRequest
 
@@ -43,7 +44,7 @@ func SetupAuthRoutes(app *fiber.App, conn *pgx.Conn) {
 				})
 			}
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Database lookup failed",
+				"error": "Database lookup failed: " + err.Error(),
 			})
 		}
 
