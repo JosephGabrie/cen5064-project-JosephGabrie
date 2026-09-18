@@ -34,7 +34,7 @@ func connect() (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	return conn, nil
+	return pool, nil
 }
 
 func main() {
