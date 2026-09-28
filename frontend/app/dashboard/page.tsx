@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-
+import { CardImage } from "../../components/ui/class-card"
 export default function DashboardPage() {
   const { user } = useAuth();
   // 1. Added <any[]> so TypeScript knows it's an array of objects
@@ -32,9 +32,15 @@ export default function DashboardPage() {
   }, [user]); // 5. Fixed the bracket syntax for the useEffect dependency array
 
   return (
-    <div>
-      {classes.map((c) => (
-        <div key={c.id}>{c.name}</div>
+    <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2 lg:grid-cols-3">
+      {classes?.map((c) => (
+        <CardImage
+          key={c.id}
+          courseName={c.name}
+          subject={c.subject}
+          teacher={c.teacher}
+          roomNumber={c.roomNumber}
+        />
       ))}
     </div>
   );
