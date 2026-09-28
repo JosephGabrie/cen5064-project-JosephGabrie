@@ -21,21 +21,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
-    const token = localStorage.getItem("token");
-    const savedUser = localStorage.getItem("user");
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setIsAuthenticated(true);
-      } catch (e) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-      }
-    }
-  }, []);
-
   const login = async (identifier: string, password: string) => {
     try {
       const response = await fetch("http://localhost:6769/api/login/", {
@@ -59,6 +44,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Network error. Please ensure backend is running." };
     }
   };
+
+  useEffect(() => {
+    setIsMounted(true);
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      } catch (e) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
+    } else {
+      const autoUser = process.env.NEXT_PUBLIC_AUTO_LOGIN_USER;
+      const autoPw = process.env.NEXT_PUBLIC_AUTO_LOGIN_PASSWORD;
+      if (autoUser && autoPw) {
+        login(autoUser, autoPw);
+      }
+    }
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("token");

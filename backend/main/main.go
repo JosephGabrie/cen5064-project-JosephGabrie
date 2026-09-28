@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"MTVSChool/api"
 	"MTVSChool/auth"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -28,8 +29,7 @@ func connect() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("SUPABASE_CONNECTION_STRING environment variable is not set")
 	}
 
-	// Use pgxpool for automatic reconnection and connection pooling
-	pool, err := pgxpool.New(context.Background(), connString)
+	conn, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func main() {
 
 	// Setup Authentication Routes
 	auth.SetupAuthRoutes(app, conn)
-
+	api.GetUserClassess(app, conn)
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Hello World")
 	})

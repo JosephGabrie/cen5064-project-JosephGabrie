@@ -3,16 +3,13 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-// Next.js 15 / React 19 throws a false-positive warning because next-themes
-// injects a script tag to prevent FOUC. We can safely suppress this specific warning.
+// Suppress the React 19 false positive warning for next-themes
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-  const origError = console.error;
-  console.error = (...args: any[]) => {
-    if (typeof args[0] === "string" && args[0].includes("Encountered a script tag while rendering React component")) {
-      return;
-    }
-    origError.apply(console, args);
-  };
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].includes("Encountered a script tag")) return
+    orig.apply(console, args)
+  }
 }
 
 function ThemeProvider({
