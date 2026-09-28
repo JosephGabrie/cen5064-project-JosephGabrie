@@ -32,3 +32,4 @@ For every new function requested:
 3. **Implement:** Write the function adhering strictly to Airbnb TS or Effective Go rules.
 4. **Verify:** Confirm tests pass successfully.
 5. **Document:** Provide the clear "What & Why" summary alongside the code output. in the folder marked as agent_documentation.md
+6. any mistake should be put in mistakes.md in the folder of the file
