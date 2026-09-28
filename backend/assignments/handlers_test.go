@@ -12,7 +12,7 @@ import (
 
 func setupApp() *fiber.App {
 	app := fiber.New()
-	// Pass nil for DB since we only test request validation here 
+	// Pass nil for DB since we only test request validation here
 	// (we would mock it in a real setup with interfaces)
 	SetupAssignmentRoutes(app, nil)
 	return app
