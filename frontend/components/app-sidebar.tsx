@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
   {
     title: "Dashboard",
-    url: "/dashboard",
+    url: "/",
     icon: LayoutGrid,
   },
   {
