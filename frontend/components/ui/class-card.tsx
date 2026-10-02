@@ -9,17 +9,21 @@ import {
 } from "@/components/ui/card"
 
 interface CardImageProps {
+  id: string;
   courseName: string;
   subject: string;
   teacher: string;
   roomNumber: string;
 }
 
-export function CardImage({ courseName, subject, teacher, roomNumber }: CardImageProps) {
+import Link from "next/link"
+
+export function CardImage({ id, courseName, subject, teacher, roomNumber }: CardImageProps) {
   const colorClass = decideSubjectColor(subject);
 
   return (
-    <Card className="relative mx-auto w-full max-w-sm pt-0">
+    <Link href={`/class/${id}`} className="block transition-transform hover:scale-[1.02]">
+    <Card className="relative mx-auto w-full max-w-sm pt-0 h-full">
       {/* 1. Fixed quotes around JSX braces */}
       {/* 2. Fixed typo 'abosolute' -> 'absolute' */}
       <div className={`absolute inset-0 z-30 aspect-video ${colorClass}`} />
@@ -38,6 +42,7 @@ export function CardImage({ courseName, subject, teacher, roomNumber }: CardImag
         <Button className="w-full">View Event</Button>
       </CardFooter>
     </Card>
+    </Link>
   )
 }
 
