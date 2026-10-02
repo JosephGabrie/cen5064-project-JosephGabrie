@@ -36,6 +36,7 @@ export default function DashboardPage() {
       {classes?.map((c) => (
         <CardImage
           key={c.id}
+          id={c.id}
           courseName={c.name}
           subject={c.subject}
           teacher={c.teacher}
