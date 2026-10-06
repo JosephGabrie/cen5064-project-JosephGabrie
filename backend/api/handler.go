@@ -16,7 +16,7 @@ type Class struct {
 
 func GetUserClassess(app *fiber.App, conn *pgxpool.Pool) {
 	app.Get(":userId/dashboard", func(c fiber.Ctx) error {
-		userId := c.Params("userID")
+		userId := c.Params("userId")
 
 		query := `SELECT c.id::text, c.class_name, u."FirstName" || ' ' || u."LastName" as teacher, c.room_number, c.subject 
 		FROM class c
