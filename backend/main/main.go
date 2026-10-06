@@ -29,13 +29,12 @@ func connect() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("SUPABASE_CONNECTION_STRING environment variable is not set")
 	}
 
-	// Use pgxpool for automatic reconnection and connection pooling
-	pool, err := pgxpool.New(context.Background(), connString)
+	conn, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
 		return nil, err
 	}
 
-	return pool, nil
+	return conn, nil
 }
 
 func main() {
