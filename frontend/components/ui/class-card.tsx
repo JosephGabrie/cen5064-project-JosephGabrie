@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/card"
 
 interface CardImageProps {
-  id: string;
   courseName: string;
   subject: string;
   teacher: string;
