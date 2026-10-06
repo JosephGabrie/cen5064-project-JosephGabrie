@@ -12,14 +12,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Calendar, LayoutGrid, User as UserIcon, LogOut } from "lucide-react";
+import { Calendar, LayoutGrid, User as UserIcon, LogOut, Home, Megaphone, MessageSquare, ClipboardList, HelpCircle, GraduationCap, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   {
     title: "Dashboard",
-    url: "/dashboard",
+    url: "/",
     icon: LayoutGrid,
   },
   {
@@ -35,7 +36,24 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  
+  const isClassRoute = pathname.startsWith("/class/");
+  const classId = isClassRoute ? pathname.split("/")[2] : null;
+
+  const classNavItems = classId ? [
+    { title: "Home", url: `/class/${classId}`, icon: Home },
+    { title: "Announcements", url: `/class/${classId}/announcements`, icon: Megaphone },
+    { title: "Discussions", url: `/class/${classId}/discussions`, icon: MessageSquare },
+    { title: "Assignments", url: `/class/${classId}/assignments`, icon: ClipboardList },
+    { title: "Quizzes", url: `/class/${classId}/quizzes`, icon: HelpCircle },
+    { title: "Grades", url: `/class/${classId}/grades`, icon: GraduationCap },
+  ] : [];
+
+  if (isClassRoute && user?.role === "teacher") {
+    classNavItems.push({ title: "Attendance", url: `/class/${classId}/attendance`, icon: CheckCircle });
+  }
 
   return (
     <Sidebar className="bg-[#f8fafc]">
@@ -49,24 +67,54 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {isClassRoute && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs font-semibold text-slate-500 tracking-wider">
+              CLASS NAVIGATION
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="mt-2 space-y-1">
+                {classNavItems.map((item) => {
+                  const isActive = pathname === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        className="text-[15px] font-medium text-slate-600 data-[active=true]:bg-slate-100 data-[active=true]:text-slate-900 py-5"
+                        render={<Link href={item.url} />}
+                      >
+                        <item.icon className="mr-2 h-5 w-5" />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-semibold text-slate-500 tracking-wider">
-            NAVIGATION
+            {isClassRoute ? "MAIN NAVIGATION" : "NAVIGATION"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="mt-2 space-y-1">
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    isActive={item.title === "Dashboard"}
-                    className="text-[15px] font-medium text-slate-600 data-[active=true]:bg-slate-100 data-[active=true]:text-slate-900 py-5"
-                    render={<Link href={item.url} />}
-                  >
-                    <item.icon className="mr-2 h-5 w-5" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                const isActive = item.url === "/" ? pathname === "/" : pathname.startsWith(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      className="text-[15px] font-medium text-slate-600 data-[active=true]:bg-slate-100 data-[active=true]:text-slate-900 py-5"
+                      render={<Link href={item.url} />}
+                    >
+                      <item.icon className="mr-2 h-5 w-5" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
