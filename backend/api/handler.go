@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Class struct {
@@ -14,28 +14,35 @@ type Class struct {
 	Subject     string `json:"subject"`
 }
 
-func GetUserClassess(app *fiber.App, conn *pgx.Conn) {
+func GetUserClassess(app *fiber.App, conn *pgxpool.Pool) {
 	app.Get(":userId/dashboard", func(c fiber.Ctx) error {
 		userId := c.Params("userID")
 
-		query := `SELECT c.id, c.name, c.teacher, c.room_number, c.subject FROM classes c
-		JOIN teacher t ON c.teacher = t.id WHERE t.user_id = $1
-
+		query := `SELECT c.id::text, c.class_name, u."FirstName" || ' ' || u."LastName" as teacher, c.room_number, c.subject 
+		FROM class c
+		JOIN teachers t ON c.teacher_id = t.id 
+		JOIN users u ON t.user_id = u."ID"
+		WHERE t.user_id = $1
+		
 		UNION 
-		SELECT cid, c.name, c.teacher, c.room_number, c.subject FROM classes c 
-		JOIN students s ON c.students = s.id 
-		JOIN parents p on s.Parent = p.id 
-		WHERE p.id = $1`
+		
+		SELECT c.id::text, c.class_name, u."FirstName" || ' ' || u."LastName" as teacher, c.room_number, c.subject 
+		FROM class c 
+		JOIN teachers t ON c.teacher_id = t.id
+		JOIN users u ON t.user_id = u."ID"
+		JOIN enrollments e ON c.id = e.class_id 
+		JOIN students s ON e.student_id = s.id 
+		WHERE s.parent_id = $1 OR s.user_id = $1`
 
 		rows, err := conn.Query(context.Background(), query, userId)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Database lookup failed",
+				"error": "Database lookup failed: " + err.Error(),
 			})
 		}
 		defer rows.Close()
 
-		var classes []Class
+		classes := []Class{}
 		for rows.Next() {
 			var class Class
 			if err := rows.Scan(&class.ID, &class.Name, &class.Teacher, &class.Room_Number, &class.Subject); err != nil {
