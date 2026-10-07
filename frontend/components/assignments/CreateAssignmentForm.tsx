@@ -24,7 +24,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function CreateAssignmentForm() {
+export default function CreateAssignmentForm({ classId }: { classId?: string }) {
   const [assignmentType, setAssignmentType] = useState<'question' | 'file'>('question');
 
   const {
@@ -36,6 +36,7 @@ export default function CreateAssignmentForm() {
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      classId: classId || '',
       assignmentType: 'question',
       questions: [],
     },
@@ -65,11 +66,15 @@ export default function CreateAssignmentForm() {
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label htmlFor="classId" className="block text-sm font-medium mb-1">Class ID</label>
-          <Input id="classId" {...register('classId')} />
-          {errors.classId && <p className="text-red-500 text-sm">{errors.classId.message}</p>}
-        </div>
+        {classId ? (
+          <input type="hidden" {...register('classId')} />
+        ) : (
+          <div>
+            <label htmlFor="classId" className="block text-sm font-medium mb-1">Class ID</label>
+            <Input id="classId" {...register('classId')} />
+            {errors.classId && <p className="text-red-500 text-sm">{errors.classId.message}</p>}
+          </div>
+        )}
 
         <div>
           <label htmlFor="dueDate" className="block text-sm font-medium mb-1">Due Date</label>
