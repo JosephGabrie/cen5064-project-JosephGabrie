@@ -2,9 +2,12 @@
 
 import React, { use } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { useAuth } from "@/contexts/AuthContext";
+import CreateAssignmentForm from "@/components/assignments/CreateAssignmentForm";
 
 export default function AssignmentsPage({ params }: { params: Promise<{ classId: string }> }) {
   const { classId } = use(params);
+  const { user } = useAuth();
 
   return (
     <AuthGuard>
@@ -13,9 +16,15 @@ export default function AssignmentsPage({ params }: { params: Promise<{ classId:
           <h1 className="mb-4 text-3xl font-bold text-slate-800 dark:text-white">
             Assignments
           </h1>
-          <p className="text-slate-600 dark:text-slate-300">
+          <p className="text-slate-600 dark:text-slate-300 mb-8">
             Assignments for class {classId} will appear here.
           </p>
+          
+          {user?.role === 'teacher' && (
+            <div className="mt-8">
+              <CreateAssignmentForm classId={classId} />
+            </div>
+          )}
         </div>
       </div>
     </AuthGuard>
