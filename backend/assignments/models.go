@@ -6,11 +6,12 @@ import (
 
 // Question represents a single question in an assignment.
 type Question struct {
-	ID       string `json:"id"`
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-	Points   int    `json:"points"`
-	Type     string `json:"type"` // e.g., "multiple_choice", "free_form", "fill_in_the_blank", "true_false"
+	ID       string   `json:"id"`
+	Question string   `json:"question"`
+	Answer   string   `json:"answer"`
+	Points   int      `json:"points"`
+	Type     string   `json:"type"` // e.g., "multiple_choice", "free_form", "fill_in_the_blank", "true_false"
+	Options  []string `json:"options,omitempty"` // For multiple choice questions
 }
 
 // Assignment represents a homework or quiz.
