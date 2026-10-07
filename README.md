@@ -8,20 +8,26 @@
 
 ## Project (approval paragraph — write this by Sun Aug 30)
 
-My project is a school information system(ISS) built for a k-8 school. 
+My project is a school information system (SIS) built for a k-8 school. 
 The features that it needs to have are:
 1. AI submission detection System
 2. Attendance system
-3. Assignmnet/Quiz system
+3. Assignment/Quiz system
 4. Notification System
 
-My tech stack will be to use React for my FrontEnd, Golang for my backend, and MySQL for my Database.
+My tech stack uses Next.js (React) for my FrontEnd, Golang for my backend, and PostgreSQL for my Database.
 ## How to run
 
 ```
-[Exact commands to build and run your system from a clean clone.
-Update this every time the steps change — your partner and your
-instructor will follow it literally on conference days.]
+# Terminal 1: Backend
+cd backend
+# Ensure .env is set with SUPABASE_CONNECTION_STRING
+go run ./main/main.go
+
+# Terminal 2: Frontend
+cd frontend
+npm install
+npm run dev
 ```
 
 ## Architecture
@@ -94,16 +100,16 @@ classDiagram
 ```mermaid
 %% Sequence diagram: ONE core use case, end to end.
 sequenceDiagram
-    actor U as User
-    participant UI
-    participant S as Service
-    participant D as Data
-    U->>UI: action
-    UI->>S: request
-    S->>D: save/load
-    D-->>S: result
-    S-->>UI: response
-    UI-->>U: confirmation
+    actor T as Teacher
+    participant UI as Next.js Frontend
+    participant S as Go Backend
+    participant D as PostgreSQL
+    T->>UI: Submits Create Assignment Form
+    UI->>S: POST /api/assignments
+    S->>D: INSERT INTO assignments
+    D-->>S: Success
+    S-->>UI: 200 OK
+    UI-->>T: Assignment created confirmation
 ```
 
 ## Architecture Decision Records
@@ -119,6 +125,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Start with ADR-001 in Session 4.
 A one-line note per week keeps your commit story readable:
 
 - Week 1 (Aug 24): repo created, three ideas drafted
-- Week 2 (Aug 31): ...
+- Week 2 (Aug 31): initial structure
 - September 21: Working on user dashboard
-  
+- October 2: Created a page for each class and fixed routing issues
+- October 6: Attached assignment creation tool to teacher class assignments section and fixed assignment form bugs
