@@ -34,9 +34,9 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 		}
 
 		// Look up user by ID or Email
-		query := `SELECT "ID", "Role", password_hash FROM public.users WHERE "ID"::text = $1 OR "Email" = $1 LIMIT 1`
-		var dbID, dbRole, dbHash string
-		err := conn.QueryRow(context.Background(), query, req.Identifier).Scan(&dbID, &dbRole, &dbHash)
+		query := `SELECT "ID", "Role", password_hash, "FirstName", "LastName", "Email" FROM public.users WHERE "ID"::text = $1 OR "Email" = $1 LIMIT 1`
+		var dbID, dbRole, dbHash, dbFirstName, dbLastName, dbEmail string
+		err := conn.QueryRow(context.Background(), query, req.Identifier).Scan(&dbID, &dbRole, &dbHash, &dbFirstName, &dbLastName, &dbEmail)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -80,8 +80,11 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 			"status": "success",
 			"token":  tokenString,
 			"user": fiber.Map{
-				"id":   dbID,
-				"role": dbRole,
+				"id":        dbID,
+				"role":      dbRole,
+				"firstName": dbFirstName,
+				"lastName":  dbLastName,
+				"email":     dbEmail,
 			},
 		})
 	})
