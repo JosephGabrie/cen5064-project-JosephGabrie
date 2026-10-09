@@ -28,6 +28,19 @@ go run ./main/main.go
 cd frontend
 npm install
 npm run dev
+
+Log in student
+438813
+041210SS
+
+Log in teacher
+31229834
+082580TT
+
+Log in Admin
+31864322
+113075AA
+
 ```
 
 ## Architecture
