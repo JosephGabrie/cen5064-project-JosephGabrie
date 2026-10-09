@@ -53,7 +53,7 @@ function QuestionItem({
   
   // Manage nested options array for multiple choice
   const { fields: optionFields, append: appendOption, remove: removeOption } = useFieldArray({
-    name: `questions.${index}.options`,
+    name: `questions.${index}.options` as any,
     control,
   });
 
@@ -125,7 +125,7 @@ function QuestionItem({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        appendOption('');
+                        appendOption('' as any);
                       }
                     }}
                   />
@@ -134,7 +134,7 @@ function QuestionItem({
                   </button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendOption('')} className="mt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => appendOption('' as any)} className="mt-2">
                 + Add Option
               </Button>
             </div>
@@ -156,8 +156,18 @@ function QuestionItem({
   );
 }
 
-export default function CreateAssignmentForm({ classId }: { classId?: string }) {
-  const [assignmentType, setAssignmentType] = useState<'question' | 'file'>('question');
+interface CreateAssignmentFormProps {
+  classId?: string;
+  initialData?: any; // Assignment data
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+export default function CreateAssignmentForm({ classId, initialData, onSuccess, onCancel }: CreateAssignmentFormProps) {
+  const [assignmentType, setAssignmentType] = useState<'question' | 'file'>(initialData?.file ? 'file' : 'question');
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const {
     register,
@@ -167,7 +177,13 @@ export default function CreateAssignmentForm({ classId }: { classId?: string }) 
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      classId: initialData.class_id || classId || '',
+      dueDate: new Date(new Date(initialData.due_date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+      assignmentType: initialData.file ? 'file' : 'question',
+      fileUrl: initialData.file || '',
+      questions: initialData.questions || [],
+    } : {
       classId: classId || '',
       assignmentType: 'question',
       questions: [],
@@ -186,13 +202,76 @@ export default function CreateAssignmentForm({ classId }: { classId?: string }) 
   }, [watchAssignmentType]);
 
   const onSubmit = async (data: FormValues) => {
-    console.log(data);
+    setIsSubmitting(true);
+    setSubmitError('');
+    try {
+      const backendPayload = {
+        class_id: data.classId,
+        due_date: new Date(data.dueDate).toISOString(),
+        questions: data.assignmentType === 'question' ? data.questions?.map(q => ({
+          id: crypto.randomUUID(),
+          question: q.question,
+          answer: q.answer || '',
+          points: q.points,
+          type: q.type,
+          options: q.options || [],
+        })) : null,
+        file: data.assignmentType === 'file' ? data.fileUrl : "",
+      };
+
+      const url = initialData 
+        ? `http://localhost:6769/api/assignments/${initialData.id}` 
+        : "http://localhost:6769/api/assignments";
+      
+      const method = initialData ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backendPayload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to ${initialData ? 'update' : 'create'} assignment`);
+      }
+
+      setShowSuccessPopup(true);
+      if (onSuccess) {
+        setTimeout(() => onSuccess(), 1500); // Give them time to see the popup
+      }
+    } catch (error: any) {
+      setSubmitError(error.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-8 max-w-4xl w-full mx-auto border rounded-xl shadow-sm bg-card text-card-foreground">
-      <div>
-        <h2 className="text-3xl font-bold mb-6">Create Assignment</h2>
+    <>
+      {showSuccessPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h3 className="text-xl font-bold mb-2">Success!</h3>
+            <p className="text-slate-600 mb-6">Assignment was successfully {initialData ? 'updated' : 'sent'} to the database.</p>
+            <Button onClick={() => {
+              setShowSuccessPopup(false);
+              if (onSuccess) onSuccess();
+            }} className="w-full">Continue</Button>
+          </div>
+        </div>
+      )}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-8 max-w-4xl w-full mx-auto border rounded-xl shadow-sm bg-card text-card-foreground">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold mb-6">{initialData ? 'Edit Assignment' : 'Create Assignment'}</h2>
+        {onCancel && (
+          <Button variant="outline" type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -276,7 +355,11 @@ export default function CreateAssignmentForm({ classId }: { classId?: string }) 
         )}
       </div>
 
-      <Button type="submit" size="lg" className="w-full text-lg mt-8">Publish Assignment</Button>
+      {submitError && <p className="text-red-500 text-sm text-center mt-4">{submitError}</p>}
+      <Button type="submit" size="lg" className="w-full text-lg mt-8" disabled={isSubmitting}>
+        {isSubmitting ? (initialData ? "Updating..." : "Publishing...") : (initialData ? "Update Assignment" : "Publish Assignment")}
+      </Button>
     </form>
+    </>
   );
 }
