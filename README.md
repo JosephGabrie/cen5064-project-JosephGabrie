@@ -15,7 +15,7 @@ The features that it needs to have are:
 3. Assignment/Quiz system
 4. Notification System
 
-My tech stack uses Next.js (React) for my FrontEnd, Golang for my backend, and PostgreSQL for my Database.
+My tech stack uses Next.js (React) for my FrontEnd, Golang for my backend, and Supabase for my Database.
 ## How to run
 
 ```
