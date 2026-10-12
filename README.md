@@ -101,13 +101,59 @@ flowchart TB
 ### UML — Class & Sequence (Session 3 studio)
 
 ```mermaid
-%% Class diagram: your 3–4 core domain classes.
+%% Class diagram: core domain classes.
 classDiagram
-    class ExampleEntity {
-        -id: Long
-        -name: String
-        +doSomething()
+    class User {
+        +string ID
+        +string FirstName
+        +string LastName
+        +string Role
+        +string Email
+        +Login(identifier, password)
     }
+
+    class Class {
+        +string ID
+        +string Name
+        +string Teacher
+        +string RoomNumber
+        +string Subject
+        +GetUserClasses(userId)
+    }
+
+    class Assignment {
+        +string ID
+        +string ClassID
+        +string File
+        +time.Time DueDate
+        +PostAssignment()
+        +PutDueDate()
+    }
+
+    class Question {
+        +string ID
+        +string Question
+        +string Answer
+        +int Points
+        +string Type
+        +string[] Options
+    }
+
+    class Submission {
+        +string ID
+        +string ClassID
+        +string StudentID
+        +string AssignmentID
+        +string Grade
+        +time.Time DateSubmitted
+        +GradeAssignment()
+    }
+
+    User "1" --> "*" Class : teaches or enrolled in
+    Class "1" --> "*" Assignment : contains
+    Assignment "1" *-- "*" Question : composed of
+    User "1" --> "*" Submission : submits
+    Assignment "1" --> "*" Submission : receives
 ```
 
 ```mermaid
@@ -120,8 +166,8 @@ sequenceDiagram
     T->>UI: Submits Create Assignment Form
     UI->>S: POST /api/assignments
     S->>D: INSERT INTO assignments
-    D-->>S: Success
-    S-->>UI: 200 OK
+    D-->>S: Success (UUID returned)
+    S-->>UI: 201 Created
     UI-->>T: Assignment created confirmation
 ```
 
@@ -131,7 +177,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Start with ADR-001 in Session 4.
 
 | # | Decision | Status |
 |---|----------|--------|
-| [001](docs/adr/adr-001.md) | [What I am building and why] | [proposed] |
+| [001](docs/adr/adr-001.md) | Architecture and Tech Stack Selection for K-8 School Information System | accepted |
 
 ## Weekly log (optional but recommended)
 
