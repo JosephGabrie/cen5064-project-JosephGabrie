@@ -11,6 +11,8 @@ run_teacher:
 	kitty -d ./backend/main/ go run main.go &
 
 run_parent:
+	kitty -d ./frontend env NEXT_PUBLIC_AUTO_LOGIN_USER=76633852 NEXT_PUBLIC_AUTO_LOGIN_PASSWORD=021485PP npm run dev &
+	kitty -d ./backend/main/ go run main.go &
 
 run_admin:
 	kitty -d ./frontend env NEXT_PUBLIC_AUTO_LOGIN_USER=31864322 NEXT_PUBLIC_AUTO_LOGIN_PASSWORD=113075AA npm run dev &

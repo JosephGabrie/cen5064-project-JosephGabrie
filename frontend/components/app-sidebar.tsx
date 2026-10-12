@@ -55,6 +55,10 @@ export function AppSidebar() {
     classNavItems.push({ title: "Attendance", url: `/class/${classId}/attendance`, icon: CheckCircle });
   }
 
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "User";
+  const displaySubtext = user?.email || (user?.role ? `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} (ID: ${user?.id})` : user?.id || "");
+  const avatarLetter = (user?.firstName?.[0] || user?.email?.[0] || user?.role?.[0] || "U").toUpperCase();
+
   return (
     <Sidebar className="bg-[#f8fafc]">
       <SidebarHeader className="border-b border-sidebar-border py-4">
@@ -124,12 +128,14 @@ export function AppSidebar() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 px-1">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/90 font-semibold text-white shadow-sm">
-              U
+              {avatarLetter}
             </div>
-            <div className="flex flex-col leading-tight gap-0.5">
-              <span className="text-[15px] font-medium text-slate-900">User</span>
-              <span className="text-[13px] text-slate-500">
-                admin@example.com
+            <div className="flex flex-col leading-tight gap-0.5 min-w-0">
+              <span className="text-[15px] font-medium text-slate-900 truncate">
+                {displayName}
+              </span>
+              <span className="text-[13px] text-slate-500 truncate">
+                {displaySubtext}
               </span>
             </div>
           </div>

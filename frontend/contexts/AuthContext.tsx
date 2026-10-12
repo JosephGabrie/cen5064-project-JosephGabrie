@@ -52,19 +52,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsMounted(true);
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
-    if (token && savedUser) {
+    const autoUser = process.env.NEXT_PUBLIC_AUTO_LOGIN_USER;
+    const autoPw = process.env.NEXT_PUBLIC_AUTO_LOGIN_PASSWORD;
+
+    if (autoUser && autoPw) {
+      let matched = false;
+      if (token && savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed && (parsed.id === autoUser || parsed.email === autoUser)) {
+            setUser(parsed);
+            setIsAuthenticated(true);
+            matched = true;
+          }
+        } catch (e) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+        }
+      }
+      if (!matched) {
+        login(autoUser, autoPw);
+      }
+    } else if (token && savedUser) {
       try {
         setUser(JSON.parse(savedUser));
         setIsAuthenticated(true);
       } catch (e) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-      }
-    } else {
-      const autoUser = process.env.NEXT_PUBLIC_AUTO_LOGIN_USER;
-      const autoPw = process.env.NEXT_PUBLIC_AUTO_LOGIN_PASSWORD;
-      if (autoUser && autoPw) {
-        login(autoUser, autoPw);
       }
     }
   }, []);
