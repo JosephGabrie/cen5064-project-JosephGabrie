@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+.next
+backend/server
+backend/main/main
+backend/main/server
+*.log
+*.tmp

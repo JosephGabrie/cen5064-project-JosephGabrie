@@ -16,9 +16,86 @@ The features that it needs to have are:
 4. Notification System
 
 My tech stack uses Next.js (React) for my FrontEnd, Golang for my backend, and Supabase for my Database.
+## Prerequisites & Installation Requirements
+
+Depending on how you run the application, make sure you have the following installed on your computer/laptop:
+
+### Method A: Running with Docker (Recommended for quick testing)
+Docker packages all dependencies (Go, Node.js, libraries) into self-contained environments, so you do not need to install Go or Node locally.
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (macOS / Windows / Linux) or **Docker Engine** (Linux).
+- **Docker Compose** (comes bundled with Docker Desktop or `docker-compose-plugin` on Linux).
+- Verify your installation:
+  ```bash
+  docker --version
+  docker compose version
+  ```
+- *(Optional)* **Make** (pre-installed on macOS/Linux; on Windows available via Git Bash, WSL, or Chocolatey) if using the `make docker-*` convenience targets.
+
+---
+
+### Method B: Running Locally (Native Development without Docker)
+To run the services directly on your operating system without containers, install the following:
+
+1. **Go (Golang)**:
+   - Required version: **1.22+** (1.24+ recommended)
+   - Install from [go.dev/dl](https://go.dev/dl/) or via package managers (`brew install go`, `sudo apt install golang`, `winget install GoLang.Go`).
+   - Verify installation:
+     ```bash
+     go version
+     ```
+
+2. **Node.js & npm**:
+   - Required version: **Node.js 20 LTS** or **22 LTS** (npm 10+ is included).
+   - Install from [nodejs.org](https://nodejs.org/) or via `nvm` (`nvm install 22`).
+   - Verify installation:
+     ```bash
+     node -v
+     npm -v
+     ```
+
+3. **Git**:
+   - Required to clone and version the codebase.
+   - Verify installation:
+     ```bash
+     git --version
+     ```
+
+4. *(Optional)* **Kitty Terminal Emulator**:
+   - Only needed if using the legacy `make run_student`, `make run_teacher`, etc. targets on Linux, which open separate Kitty windows. Otherwise, standard terminal windows work for running the backend and frontend.
+
+---
+
 ## How to run
 
-```
+### Option 1: Running with Docker (Recommended for testing on other computers/laptops)
+
+No need to have Go or Node.js installed locally—only Docker and Docker Compose.
+
+1. **Set up Environment Variables**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Start Backend & Frontend**:
+   ```bash
+   docker compose up --build
+   ```
+   *(Or run in background with `docker compose up --build -d` or `make docker-up`)*
+
+3. **Access the application**:
+   - **Frontend UI:** [http://localhost:3000](http://localhost:3000)
+   - **Backend API:** [http://localhost:6769](http://localhost:6769)
+
+4. **Stop the containers**:
+   ```bash
+   docker compose down
+   # or
+   make docker-down
+   ```
+
+### Option 2: Running locally without Docker
+
+```bash
 # Terminal 1: Backend
 cd backend
 # Ensure .env is set with SUPABASE_CONNECTION_STRING
@@ -28,20 +105,16 @@ go run ./main/main.go
 cd frontend
 npm install
 npm run dev
-
-Log in student
-438813
-041210SS
-
-Log in teacher
-31229834
-082580TT
-
-Log in Admin
-31864322
-113075AA
-
 ```
+
+### Test User Credentials
+
+| Role | Identifier | Password |
+|---|---|---|
+| **Student** | `438813` | `041210SS` |
+| **Teacher** | `31229834` | `082580TT` |
+| **Admin** | `31864322` | `113075AA` |
+| **Parent** | `76633852` | `021485PP` |
 
 ## Architecture
 ### Tier breakdown (Session 2 studio)

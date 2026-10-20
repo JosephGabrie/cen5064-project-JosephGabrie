@@ -17,13 +17,10 @@ import (
 
 func connect() (*pgxpool.Pool, error) {
 	// Try to load .env from different possible working directories
-	err := godotenv.Load("../.env")
-	if err != nil {
-		err = godotenv.Load("../../.env")
-		if err != nil {
-			log.Println("Warning: Could not load .env file from relative paths (it might already be in the environment)")
-		}
-	}
+	_ = godotenv.Load()
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load("../.env")
+	_ = godotenv.Load("../../.env")
 
 	connString := os.Getenv("SUPABASE_CONNECTION_STRING")
 	if connString == "" {
