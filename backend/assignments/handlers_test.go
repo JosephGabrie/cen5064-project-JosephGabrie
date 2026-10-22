@@ -63,3 +63,35 @@ func TestPutDueDate_Validation(t *testing.T) {
 		t.Errorf("Expected status %d for invalid date, got %d", fiber.StatusBadRequest, resp.StatusCode)
 	}
 }
+
+func TestPutSubmissionGrade_Validation(t *testing.T) {
+	app := setupApp()
+
+	body := []byte(`{"grade": ""}`)
+	req := httptest.NewRequest("PUT", "/api/submissions/sub-1/grade", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("Expected status %d for empty grade, got %d", fiber.StatusBadRequest, resp.StatusCode)
+	}
+}
+
+func TestGetClassSubmissions_RouteExists(t *testing.T) {
+	app := setupApp()
+	req := httptest.NewRequest("GET", "/api/classes/1/submissions", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode == fiber.StatusNotFound {
+		t.Errorf("Expected /api/classes/1/submissions route to exist, got 404")
+	}
+}
+
+func TestGetUserSubmissions_RouteExists(t *testing.T) {
+	app := setupApp()
+	req := httptest.NewRequest("GET", "/api/users/438813/submissions", nil)
+	resp, _ := app.Test(req)
+	if resp.StatusCode == fiber.StatusNotFound {
+		t.Errorf("Expected /api/users/438813/submissions route to exist, got 404")
+	}
+}
+
