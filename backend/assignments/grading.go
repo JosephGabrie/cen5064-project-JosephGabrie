@@ -2,6 +2,8 @@ package assignments
 
 import (
 	"fmt"
+	"math"
+	"strings"
 )
 
 // GradeAssignment evaluates a submission against an assignment and returns the grade.
@@ -32,7 +34,7 @@ func GradeAssignment(assignment Assignment, submission Submission) string {
 		}
 
 		studentAns, exists := studentAnswersMap[q.ID]
-		if exists && studentAns == q.Answer {
+		if exists && strings.EqualFold(strings.TrimSpace(studentAns), strings.TrimSpace(q.Answer)) {
 			totalPoints += q.Points
 		}
 	}
@@ -42,4 +44,68 @@ func GradeAssignment(assignment Assignment, submission Submission) string {
 	}
 
 	return fmt.Sprintf("%d", totalPoints)
+}
+
+// EvaluateSubmissionFeedback produces instant auto-grading feedback per question and overall score metrics.
+func EvaluateSubmissionFeedback(assignment Assignment, submission Submission) SubmissionFeedback {
+	isLate := !assignment.DueDate.IsZero() && submission.DateSubmitted.After(assignment.DueDate)
+	needsManual := len(assignment.Questions) == 0 && assignment.File != ""
+
+	studentAnswersMap := make(map[string]string)
+	for _, sa := range submission.StudentAnswer {
+		studentAnswersMap[sa.QuestionID] = sa.Answer
+	}
+
+	earnedPoints := 0
+	totalPoints := 0
+	questionFeedbacks := make([]QuestionFeedback, 0, len(assignment.Questions))
+
+	for _, q := range assignment.Questions {
+		totalPoints += q.Points
+		studentAns := studentAnswersMap[q.ID]
+
+		qf := QuestionFeedback{
+			QuestionID:     q.ID,
+			QuestionText:   q.Question,
+			QuestionType:   q.Type,
+			StudentAnswer:  studentAns,
+			ExpectedAnswer: q.Answer,
+			MaxPoints:      q.Points,
+		}
+
+		if q.Type == "free_form" {
+			qf.NeedsReview = true
+			needsManual = true
+		} else {
+			matched := studentAns != "" && strings.EqualFold(strings.TrimSpace(studentAns), strings.TrimSpace(q.Answer))
+			qf.IsCorrect = matched
+			if matched && !isLate {
+				qf.AwardedPoints = q.Points
+				earnedPoints += q.Points
+			}
+		}
+
+		questionFeedbacks = append(questionFeedbacks, qf)
+	}
+
+	if isLate {
+		earnedPoints = 0
+	}
+
+	percentage := 0.0
+	if totalPoints > 0 {
+		percentage = math.Round((float64(earnedPoints)/float64(totalPoints))*1000) / 10
+	}
+
+	summaryGrade := GradeAssignment(assignment, submission)
+
+	return SubmissionFeedback{
+		EarnedPoints:       earnedPoints,
+		TotalPoints:        totalPoints,
+		Percentage:         percentage,
+		IsLate:             isLate,
+		NeedsManualGrading: needsManual,
+		SummaryGrade:       summaryGrade,
+		Questions:          questionFeedbacks,
+	}
 }
