@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       setIsAuthenticated(true);
       return { success: true };
-    } catch (error) {
+    } catch {
       return { success: false, error: "Network error. Please ensure backend is running." };
     }
   };
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(true);
             matched = true;
           }
-        } catch (e) {
+        } catch {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
         }
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setUser(JSON.parse(savedUser));
         setIsAuthenticated(true);
-      } catch (e) {
+      } catch {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       }

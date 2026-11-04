@@ -240,8 +240,8 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
       if (onSuccess) {
         setTimeout(() => onSuccess(), 1500); // Give them time to see the popup
       }
-    } catch (error: any) {
-      setSubmitError(error.message || "An unexpected error occurred.");
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : "An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
     }
@@ -335,7 +335,7 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
             </div>
             
             {fields.length === 0 && (
-              <p className="text-slate-500 italic text-center py-8">No questions added yet. Click "Add Question" to begin.</p>
+              <p className="text-slate-500 italic text-center py-8">No questions added yet. Click &quot;Add Question&quot; to begin.</p>
             )}
 
             <div className="space-y-6">

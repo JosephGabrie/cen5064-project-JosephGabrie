@@ -119,3 +119,30 @@ Each AI critique block details:
   - **Fixed:** Added domain methods to `Class` (`Validate`, `MatchesSubject`) with unit tests in `api/class_test.go`.
   - **Fixed:** Added domain methods to `Assignment`, `Question`, and `Submission` (`Validate`, `IsLate`, `TotalPoints`, `GradeSubmission`, `EvaluateFeedback`, `EvaluateAnswer`, `GetAnswerForQuestion`) with unit tests in `grading_test.go`.
   - **Fixed:** Updated UML class diagram in `README.md` so that every method is an actual domain method on the struct, and styled planned external services with `style <Class> stroke-dasharray: 5 5` and `<<planned>>`.
+
+---
+
+## 6. Admin Dashboard: School-Wide Metrics & Class Scheduling (`27-admin-dashboard-class-scheduling-teacher-assignment`)
+
+### Context & Implementation
+- Created `backend/admin/` package (`models.go`, `handlers.go`, `admin_test.go`) implementing:
+  - Domain models and pure business rules: `CalculateSchoolMetrics()`, `(c *AdminClassSection) Validate(assignedUserRole string) error`, and `ValidateStudentEnrollment(studentID string, existingStudentIDs []string) error`.
+  - Role-based middleware (`AdminRoleMiddleware()`) enforcing admin authorization via JWT or `X-User-Role` header.
+  - REST endpoints: `GET /api/admin/metrics`, `GET /api/admin/teachers`, `GET /api/admin/students`, `GET /api/admin/classes`, `POST /api/admin/classes`, `POST /api/admin/classes/:classId/enroll`, and `DELETE /api/admin/classes/:classId/enroll/:studentId`.
+- Built `frontend/components/dashboards/AdminDashboard.tsx` and `frontend/components/dashboards/AdminDashboard.test.tsx`, and wired role-based rendering in `frontend/app/page.tsx`.
+- Resolved all Frontend CI ESLint errors (`react-hooks/preserve-manual-memoization` in `assignments/page.tsx` and `quizzes/page.tsx`) and warnings.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked domain validation rules for class creation (non-empty name/subject/room/teacher and verifying the assigned user holds the `teacher` role), duplicate student enrollment prevention, and zero-division guards in attendance rate calculations.
+  - Checked React Compiler memoization dependency inference (`react-hooks/preserve-manual-memoization`) on `useCallback` hooks in Next.js client pages.
+  - Checked Node 22+ / Vitest jsdom compatibility when accessing `window.localStorage` in `AdminDashboard.tsx`.
+- **What was wrong:**
+  - **React Compiler Memoization Mismatch:** Passing `[classId, user?.id, user?.role]` directly in `useCallback` caused the React Compiler ESLint plugin to fail CI because `user` was accessed inside the callback body, making the inferred dependency (`user`) less specific than the manual dependency array.
+  - **Node 22+ `localStorage.getItem` Runtime Exception in Vitest:** Calling `localStorage.getItem("token")` only after `typeof window !== "undefined"` threw `TypeError: localStorage.getItem is not a function` in Node 22's experimental WebStorage environment during Vitest execution, causing `loadDashboardData()` to fail silently in tests.
+- **What was fixed or kept:**
+  - **Fixed:** Destructured `const userId = user?.id; const userRole = user?.role;` prior to `useCallback` in `assignments/page.tsx` and `quizzes/page.tsx` so manual dependencies match inferred primitive values.
+  - **Fixed:** Guarded `window.localStorage?.getItem` with `typeof window.localStorage?.getItem === "function"` in `buildAdminHeaders()`.
+  - **Kept:** Kept the pure domain functions (`CalculateSchoolMetrics`, `AdminClassSection.Validate`, `ValidateStudentEnrollment`) and full unit/component test suites across Go and Vitest.
+

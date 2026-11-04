@@ -31,6 +31,9 @@ export default function AssignmentsPage({
   const [gradeEdits, setGradeEdits] = useState<Record<string, string>>({});
   const [savingGradeId, setSavingGradeId] = useState<string | null>(null);
 
+  const userId = user?.id;
+  const userRole = user?.role;
+
   const fetchAssignmentsAndSubmissions = useCallback(() => {
     fetch(`http://localhost:6769/api/classes/${classId}/assignments`)
       .then((res) => res.json())
@@ -41,9 +44,9 @@ export default function AssignmentsPage({
       })
       .catch((err) => console.error("Error fetching assignments:", err));
 
-    if (user?.id) {
+    if (userId) {
       const query =
-        user.role === "student" ? `?student_id=${encodeURIComponent(user.id)}` : "";
+        userRole === "student" ? `?student_id=${encodeURIComponent(userId)}` : "";
       fetch(`http://localhost:6769/api/classes/${classId}/submissions${query}`)
         .then((res) => res.json())
         .then((data) => {
@@ -53,7 +56,7 @@ export default function AssignmentsPage({
         })
         .catch((err) => console.error("Error fetching submissions:", err));
     }
-  }, [classId, user?.id, user?.role]);
+  }, [classId, userId, userRole]);
 
   useEffect(() => {
     fetchAssignmentsAndSubmissions();
