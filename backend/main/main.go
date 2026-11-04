@@ -8,6 +8,7 @@ import (
 
 	"MTVSChool/api"
 	"MTVSChool/assignments"
+	"MTVSChool/attendance"
 	"MTVSChool/auth"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -53,6 +54,7 @@ func main() {
 	auth.SetupAuthRoutes(app, conn)
 	api.GetUserClassess(app, conn)
 	assignments.SetupAssignmentRoutes(app, conn)
+	attendance.SetupAttendanceAndPortalRoutes(app, conn)
 
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Hello World")

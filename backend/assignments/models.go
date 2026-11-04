@@ -1,6 +1,8 @@
 package assignments
 
 import (
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -64,3 +66,109 @@ type Submission struct {
 	DateSubmitted time.Time           `json:"date_submitted"`
 	Feedback      *SubmissionFeedback `json:"feedback,omitempty"`
 }
+
+// Validate checks domain constraints for an Assignment.
+func (a *Assignment) Validate() error {
+	if strings.TrimSpace(a.ClassID) == "" {
+		return fmt.Errorf("class_id is required")
+	}
+	if a.DueDate.IsZero() {
+		return fmt.Errorf("due_date is required")
+	}
+	for _, q := range a.Questions {
+		if err := q.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// IsLate checks if a submission timestamp occurs after the assignment due date.
+func (a *Assignment) IsLate(submittedAt time.Time) bool {
+	if a.DueDate.IsZero() {
+		return false
+	}
+	return submittedAt.After(a.DueDate)
+}
+
+// TotalPoints calculates the cumulative maximum points for the assignment.
+func (a *Assignment) TotalPoints() int {
+	total := 0
+	for _, q := range a.Questions {
+		total += q.Points
+	}
+	return total
+}
+
+// GradeSubmission calculates the grade using domain rules.
+func (a *Assignment) GradeSubmission(sub Submission) string {
+	return GradeAssignment(*a, sub)
+}
+
+// EvaluateFeedback computes per-question feedback and summary score metrics.
+func (a *Assignment) EvaluateFeedback(sub Submission) SubmissionFeedback {
+	return EvaluateSubmissionFeedback(*a, sub)
+}
+
+// Validate checks domain constraints for a Question.
+func (q *Question) Validate() error {
+	if strings.TrimSpace(q.Question) == "" {
+		return fmt.Errorf("question text cannot be empty")
+	}
+	if q.Points < 0 {
+		return fmt.Errorf("question points cannot be negative")
+	}
+	validTypes := map[string]bool{
+		"multiple_choice":   true,
+		"free_form":         true,
+		"fill_in_the_blank": true,
+		"true_false":        true,
+	}
+	if !validTypes[q.Type] {
+		return fmt.Errorf("invalid question type: %s", q.Type)
+	}
+	if q.Type == "multiple_choice" && len(q.Options) < 2 {
+		return fmt.Errorf("multiple choice questions must have at least 2 options")
+	}
+	return nil
+}
+
+// EvaluateAnswer evaluates a student's answer against expected criteria.
+func (q *Question) EvaluateAnswer(studentAns string) (isCorrect bool, awardedPoints int, needsReview bool) {
+	if q.Type == "free_form" {
+		return false, 0, true
+	}
+	s := strings.TrimSpace(studentAns)
+	expected := strings.TrimSpace(q.Answer)
+	if s != "" && strings.EqualFold(s, expected) {
+		return true, q.Points, false
+	}
+	return false, 0, false
+}
+
+// Validate checks domain constraints for a Submission.
+func (s *Submission) Validate() error {
+	if strings.TrimSpace(s.StudentID) == "" {
+		return fmt.Errorf("student_id is required")
+	}
+	if strings.TrimSpace(s.AssignmentID) == "" {
+		return fmt.Errorf("assignment_id is required")
+	}
+	return nil
+}
+
+// GradeAssignment calculates the grade for this submission against the assignment.
+func (s *Submission) GradeAssignment(a Assignment) string {
+	return GradeAssignment(a, *s)
+}
+
+// GetAnswerForQuestion finds the student's answer for a given question ID.
+func (s *Submission) GetAnswerForQuestion(questionID string) string {
+	for _, ans := range s.StudentAnswer {
+		if ans.QuestionID == questionID {
+			return ans.Answer
+		}
+	}
+	return ""
+}
+

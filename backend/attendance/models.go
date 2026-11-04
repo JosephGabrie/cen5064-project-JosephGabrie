@@ -1,6 +1,11 @@
 package attendance
 
-import "MTVSChool/assignments"
+import (
+	"fmt"
+	"strings"
+
+	"MTVSChool/assignments"
+)
 
 // EnrolledStudent represents a student enrolled in a class.
 type EnrolledStudent struct {
@@ -21,6 +26,26 @@ type AttendanceRecord struct {
 	Date        string `json:"date"`
 	Status      string `json:"status"` // "present", "absent", "tardy"
 	Notes       string `json:"notes,omitempty"`
+}
+
+// NormalizeStatus returns the lowercase trimmed status string.
+func (r *AttendanceRecord) NormalizeStatus() string {
+	return strings.ToLower(strings.TrimSpace(r.Status))
+}
+
+// Validate checks core domain constraints on an AttendanceRecord.
+func (r *AttendanceRecord) Validate() error {
+	if strings.TrimSpace(r.StudentID) == "" {
+		return fmt.Errorf("student_id is required")
+	}
+	if strings.TrimSpace(r.Date) == "" {
+		return fmt.Errorf("date is required")
+	}
+	norm := r.NormalizeStatus()
+	if norm != "present" && norm != "absent" && norm != "tardy" {
+		return fmt.Errorf("invalid attendance status: must be present, absent, or tardy")
+	}
+	return nil
 }
 
 // BatchAttendanceRequest is the request payload for saving daily attendance for a class.

@@ -2,8 +2,16 @@ package api
 
 import (
 	"context"
+	"errors"
+	"strings"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrEmptyClassName = errors.New("class name cannot be empty")
+	ErrEmptySubject   = errors.New("class subject cannot be empty")
 )
 
 type Class struct {
@@ -12,6 +20,22 @@ type Class struct {
 	Teacher     string `json:"teacher"`
 	Room_Number string `json:"room_Number"`
 	Subject     string `json:"subject"`
+}
+
+// Validate checks core domain rules for a Class entity.
+func (c *Class) Validate() error {
+	if strings.TrimSpace(c.Name) == "" {
+		return ErrEmptyClassName
+	}
+	if strings.TrimSpace(c.Subject) == "" {
+		return ErrEmptySubject
+	}
+	return nil
+}
+
+// MatchesSubject checks if the class belongs to the specified subject (case-insensitive).
+func (c *Class) MatchesSubject(subject string) bool {
+	return strings.EqualFold(strings.TrimSpace(c.Subject), strings.TrimSpace(subject))
 }
 
 func GetUserClassess(app *fiber.App, conn *pgxpool.Pool) {

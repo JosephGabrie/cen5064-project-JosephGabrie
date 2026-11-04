@@ -9,7 +9,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginRequest struct {
@@ -35,8 +34,8 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 
 		// Look up user by ID or Email
 		query := `SELECT "ID", "Role", password_hash, COALESCE("FirstName", ''), COALESCE("LastName", ''), COALESCE("Email", '') FROM public.users WHERE "ID"::text = $1 OR "Email" = $1 LIMIT 1`
-		var dbID, dbRole, dbHash, dbFirstName, dbLastName, dbEmail string
-		err := conn.QueryRow(context.Background(), query, req.Identifier).Scan(&dbID, &dbRole, &dbHash, &dbFirstName, &dbLastName, &dbEmail)
+		var user User
+		err := conn.QueryRow(context.Background(), query, req.Identifier).Scan(&user.ID, &user.Role, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Email)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -48,8 +47,8 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 			})
 		}
 
-		// Verify hashed password
-		if err := VerifyPassword(req.Password, dbHash); err != nil {
+		// Verify hashed password via domain method
+		if err := user.VerifyPassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid credentials",
 			})
@@ -64,8 +63,8 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 		}
 
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"id":   dbID,
-			"role": dbRole,
+			"id":   user.ID,
+			"role": user.Role,
 			"exp":  time.Now().Add(time.Hour * 24).Unix(), // 24 hours expiry
 		})
 
@@ -80,16 +79,18 @@ func SetupAuthRoutes(app *fiber.App, conn *pgxpool.Pool) {
 			"status": "success",
 			"token":  tokenString,
 			"user": fiber.Map{
-				"id":        dbID,
-				"role":      dbRole,
-				"firstName": dbFirstName,
-				"lastName":  dbLastName,
-				"email":     dbEmail,
+				"id":        user.ID,
+				"role":      user.Role,
+				"firstName": user.FirstName,
+				"lastName":  user.LastName,
+				"email":     user.Email,
 			},
 		})
 	})
 }
 
+// VerifyPassword provides package-level password verification for legacy callers.
 func VerifyPassword(userPassword, hashedPassword string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(userPassword))
+	u := User{PasswordHash: hashedPassword}
+	return u.VerifyPassword(userPassword)
 }

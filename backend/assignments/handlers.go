@@ -46,11 +46,8 @@ func postAssignment(conn *pgxpool.Pool) fiber.Handler {
 		if err := c.Bind().Body(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request format"})
 		}
-		if req.ClassID == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "class_id is required"})
-		}
-		if req.DueDate.IsZero() {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "due_date is required"})
+		if err := req.Validate(); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 
 		if conn == nil {
@@ -164,8 +161,8 @@ func postSubmission(conn *pgxpool.Pool) fiber.Handler {
 		if req.ClassID == "" {
 			req.ClassID = a.ClassID
 		}
-		req.Grade = GradeAssignment(a, req)
-		fb := EvaluateSubmissionFeedback(a, req)
+		req.Grade = a.GradeSubmission(req)
+		fb := a.EvaluateFeedback(req)
 		req.Feedback = &fb
 
 		// Insert submission
@@ -199,7 +196,7 @@ func getSubmission(conn *pgxpool.Pool) fiber.Handler {
 		queryAssign := `SELECT id, class_id, questions, COALESCE(file, ''), due_date FROM public.assignments WHERE id = $1`
 		var a Assignment
 		if err := conn.QueryRow(context.Background(), queryAssign, s.AssignmentID).Scan(&a.ID, &a.ClassID, &a.Questions, &a.File, &a.DueDate); err == nil {
-			fb := EvaluateSubmissionFeedback(a, s)
+			fb := a.EvaluateFeedback(s)
 			s.Feedback = &fb
 		}
 

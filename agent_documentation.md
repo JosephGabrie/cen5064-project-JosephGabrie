@@ -1,15 +1,121 @@
-# Agent Documentation
+# AI Assistance & Agent Critique Documentation
 
-## Assignment and Submission System Implementation
+This document records architectural intents and **AI Critique Blocks** for all pull requests and features where an AI assistant was utilized, in accordance with the CEN 5064 Software Design course requirements.
 
-**What was done:**
-- Implemented the database structure (structs) for Assignments and Submissions.
-- Implemented `GradeAssignment` which handles auto-grading logic, marking late submissions as `0`, and flagging free-form or file-based answers as `Needs Manual Grading`.
-- Created Fiber handlers `PostAssignment`, `GetAssignment`, `PutDueDate`, `PostSubmission`, and `GetSubmission` mimicking a REST API behavior to process these objects and persist them via `pgxpool`.
-- Added React Hook Form implementation for Teacher UI `CreateAssignmentForm` following Shadcn UI patterns and zod validation schema.
-- Added Next.js Teacher page route `/teacher/assignments/create`.
-- Adhered strictly to TDD for both frontend (using Vitest) and backend (using Go's built in testing). Test coverage spans input validation, edge cases (such as time logic), and logic extraction.
+Each AI critique block details:
+1. **What was checked:** Architectural boundaries, domain invariants, edge cases, and test contracts examined by the developer.
+2. **What was wrong:** Errors, hallucinations, incorrect assumptions, tier violations, or missing edge cases in the AI's proposal.
+3. **What was fixed or kept:** Specific corrections, refactors, and retained verified code.
 
-**The Intent:**
-- **Go Backend:** We encapsulate grading logic into its own pure function `GradeAssignment` rather than entangling it within Fiber handlers. This permits fast TDD cycles without requiring a fully spun-up database or HTTP mocking. This architectural decision satisfies Effective Go's guidance on testable components.
-- **Next.js Frontend:** React Hook Forms coupled with Zod ensures reliable client-side validation while minimizing unneeded re-renders on every keystroke. Using standard semantic elements structured similarly to Shadcn UI enables easy custom styling or future direct component swaps while maintaining accessibility.
+---
+
+## 1. Assignment & Quiz Creation Subsystem (PR #14 / #16)
+
+### Context & Implementation
+- Implemented core domain structs (`Assignment`, `Question`) and Fiber REST handlers for teacher assignment publishing.
+- Created React Hook Form UI with Zod validation schema for teachers to create multiple choice, true/false, fill-in-the-blank, and free-form questions.
+
+### AI Critique Block
+- **AI Tool / Model:** Claude 3.5 Sonnet / GitHub Copilot
+- **What was checked:**
+  - Validated that question schemas properly differentiated between objective questions (requiring exact answer matching) and subjective free-form questions.
+  - Checked input validation logic across client form and backend handler.
+  - Verified keyboard event handling when teachers dynamically add multiple-choice options.
+- **What was wrong:**
+  - **Free-form answer requirement bug:** The AI generated form validation that marked `expected_answer` as a required field for `free_form` essay questions, which broke teacher submissions.
+  - **Premature form submission on Enter:** When adding multiple-choice options, pressing `Enter` triggered form submission rather than adding an option tag.
+  - **Tier Leakage:** The AI initially placed question validation inside the Fiber HTTP handler (`handlers.go`) rather than encapsulating domain validation within the `Question.Validate()` and `Assignment.Validate()` domain methods.
+- **What was fixed or kept:**
+  - **Fixed:** Updated `CreateAssignmentForm.tsx` to conditionally hide and relax the expected answer requirement when `type === 'free_form'`.
+  - **Fixed:** Added `e.preventDefault()` on Enter key presses in the options array input.
+  - **Fixed:** Moved question and assignment validation rules into domain entity methods (`Question.Validate()`, `Assignment.Validate()`) accompanied by pure unit tests in Go.
+  - **Kept:** Kept the React Hook Form structure with Zod resolver and the database JSON column serialization for questions.
+
+---
+
+## 2. Assignment Dashboard & Due Date Editing (PR #18)
+
+### Context & Implementation
+- Added active vs. past-due assignment list views for teachers and students, with modal editing for due dates.
+
+### AI Critique Block
+- **AI Tool / Model:** GitHub Copilot / GPT-4o
+- **What was checked:**
+  - Inspected time zone handling and ISO-8601 parsing across the Next.js client, Go backend, and PostgreSQL database.
+  - Checked date mutation endpoints (`PUT /api/assignments/:id/due-date`) to ensure they only accept valid future/present timestamps.
+- **What was wrong:**
+  - **Timezone Drift:** The AI attempted to compare client local timestamps with UTC database timestamps directly in the frontend component (`new Date(assign.due_date) < new Date()`), causing false "past due" classifications around UTC boundary hours.
+  - **Missing 404 Guard:** The AI's SQL update handler did not check `RowsAffected()`, returning HTTP 200 even when a non-existent assignment UUID was targeted.
+- **What was fixed or kept:**
+  - **Fixed:** Added domain method `Assignment.IsLate(t time.Time)` in Go to standardize deadline comparison logic, and normalized frontend timestamps through ISO parsing.
+  - **Fixed:** Added `tag.RowsAffected() == 0` check in Fiber handler to return HTTP 404 when target assignment is not found.
+  - **Kept:** Kept the Shadcn UI dialog modal and optimistic state updates on successful due date extension.
+
+---
+
+## 3. Instant Auto-Grading Feedback Engine & Submission View (PR #21 / PR #24)
+
+### Context & Implementation
+- Implemented `GradeAssignment()` and `EvaluateSubmissionFeedback()` to provide instant scoring and question-by-question breakdown upon submission.
+- Built `StudentAssignmentView` component displaying question feedback, earned points, and overall percentage.
+
+### AI Critique Block
+- **AI Tool / Model:** Claude 3.5 Sonnet / Antigravity
+- **What was checked:**
+  - Examined the grading rules: late submissions penalized to `0`, free-form questions flagged for manual review, objective questions auto-graded case-insensitively.
+  - Checked percentage calculation for divide-by-zero errors when assignments have `0` points.
+- **What was wrong:**
+  - **Inconsistent Late Penalty in Feedback:** While `GradeAssignment()` returned `"0"` for late submissions, the AI's generated `EvaluateSubmissionFeedback()` still awarded full points in `EarnedPoints` and `Percentage`, creating a contradiction in the UI between the grade summary and the point tally.
+  - **Case Sensitivity Bug:** The string comparison used strict equality (`studentAns == q.Answer`), which falsely failed answers like `"True"` when the teacher stored `"true"`.
+  - **Divide-by-zero vulnerability:** Percentage calculation failed if an assignment had 0 total questions/points.
+- **What was fixed or kept:**
+  - **Fixed:** Standardized case-insensitive matching using `strings.EqualFold(strings.TrimSpace(studentAns), strings.TrimSpace(q.Answer))`.
+  - **Fixed:** Ensured `EvaluateSubmissionFeedback` zeros out `EarnedPoints` when `isLate == true`, maintaining parity with `GradeAssignment()`.
+  - **Fixed:** Added zero-point guard (`if totalPoints > 0`) before computing percentage.
+  - **Kept:** Retained the `SubmissionFeedback` struct and Vitest component test assertions for instant auto-grading feedback.
+
+---
+
+## 4. Attendance Tracking, Seating Grid & Parent Portal (PR #22 / PR #23)
+
+### Context & Implementation
+- Added classroom seating chart manager, daily attendance recording (present/absent/tardy), and the Parent Portal dashboard with attendance metrics.
+
+### AI Critique Block
+- **AI Tool / Model:** Claude 3.5 Sonnet / Google Gemini
+- **What was checked:**
+  - Checked seating plan validation: bounds checking, duplicate student assignments, and coordinate collision detection.
+  - Checked attendance summary percentage formulas and grouping by date.
+- **What was wrong:**
+  - **Unmounted Routes in main.go:** The AI created all routes in `attendance/handlers.go` inside `SetupAttendanceAndPortalRoutes()`, but completely forgot to register them in `backend/main/main.go`. Without manual verification, all attendance API calls would 404 on deployment!
+  - **Seating Collision Logic Flaw:** The initial seating validation only checked if two students shared the same row/col coordinate, but did not detect if one student was assigned to multiple different desks simultaneously.
+  - **Undefined Status Handling:** The attendance calculator didn't normalize status strings, causing capitalized entries (e.g., `"Present"`) to be omitted from the counts.
+- **What was fixed or kept:**
+  - **Fixed:** Registered `attendance.SetupAttendanceAndPortalRoutes(app, conn)` in `backend/main/main.go`.
+  - **Fixed:** Added two-way collision checks in `ValidateSeatingPlan`: coordinate collision (`occupiedCoords[coordKey]`) and student multiplicity (`assignedStudents[studentID]`).
+  - **Fixed:** Added `NormalizeAttendanceStatus()` and `AttendanceRecord.Validate()` domain methods with unit test coverage.
+  - **Kept:** Kept the interactive drag-and-drop seating grid UI and parent portal overview aggregates.
+
+---
+
+## 5. Domain Business Rule Refactoring & Diagram Alignment (Final Rubric Fix)
+
+### Context & Implementation
+- Refactored core business rules out of controllers and services into dedicated Domain classes (`User`, `Class`, `Assignment`, `Question`, `Submission`, `AttendanceRecord`).
+- Aligned UML Class Diagram and C4 Container Diagrams with actual codebase symbols and marked planned systems with dashed borders and `<<planned>>`.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked that every class and method in `README.md`'s UML class diagram exists in the Go backend with identical signatures and pure unit test coverage.
+  - Checked that unbuilt features (such as AI plagiarism detection and external SMS notifications) are explicitly designated as `<<planned>>` with dashed borders.
+  - Checked that all domain invariant checks are backed by red-green unit tests.
+- **What was wrong:**
+  - **HTTP Handlers in Class Diagram:** The previous class diagram included `+PostAssignment()` and `+PutDueDate()` as methods on the `Assignment` class. These are HTTP route handlers (Service tier), not domain methods.
+  - **Missing User Domain Struct:** The codebase previously queried users into ad-hoc primitive variables in `signIn.go` without a domain `User` struct or domain-level password verification / role validation methods.
+  - **Untested Auth Package:** `backend/auth/auth_test.go` had 0 tests, leaving password verification and role enforcement untested at the unit level.
+- **What was fixed or kept:**
+  - **Fixed:** Created `auth.User` domain model with `Validate()`, `HasRole()`, `FullName()`, and `VerifyPassword()` methods, backed by unit tests in `auth_test.go`.
+  - **Fixed:** Added domain methods to `Class` (`Validate`, `MatchesSubject`) with unit tests in `api/class_test.go`.
+  - **Fixed:** Added domain methods to `Assignment`, `Question`, and `Submission` (`Validate`, `IsLate`, `TotalPoints`, `GradeSubmission`, `EvaluateFeedback`, `EvaluateAnswer`, `GetAnswerForQuestion`) with unit tests in `grading_test.go`.
+  - **Fixed:** Updated UML class diagram in `README.md` so that every method is an actual domain method on the struct, and styled planned external services with `style <Class> stroke-dasharray: 5 5` and `<<planned>>`.

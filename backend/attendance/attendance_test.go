@@ -157,3 +157,40 @@ func TestPostAnnouncement_Validation(t *testing.T) {
 		t.Errorf("Expected 400 Bad Request for empty announcement, got %d", resp.StatusCode)
 	}
 }
+
+func TestAttendanceRecord_DomainMethods(t *testing.T) {
+	validRecord := AttendanceRecord{
+		StudentID: "438813",
+		Date:      "2026-10-21",
+		Status:    "Present",
+	}
+
+	if err := validRecord.Validate(); err != nil {
+		t.Errorf("expected valid attendance record to pass validation, got: %v", err)
+	}
+	if norm := validRecord.NormalizeStatus(); norm != "present" {
+		t.Errorf("expected normalized status 'present', got %q", norm)
+	}
+
+	// Missing student ID
+	missingStudent := validRecord
+	missingStudent.StudentID = "  "
+	if err := missingStudent.Validate(); err == nil {
+		t.Errorf("expected missing student_id to fail validation")
+	}
+
+	// Missing date
+	missingDate := validRecord
+	missingDate.Date = ""
+	if err := missingDate.Validate(); err == nil {
+		t.Errorf("expected missing date to fail validation")
+	}
+
+	// Invalid status
+	badStatus := validRecord
+	badStatus.Status = "excused"
+	if err := badStatus.Validate(); err == nil {
+		t.Errorf("expected invalid status 'excused' to fail validation")
+	}
+}
+
