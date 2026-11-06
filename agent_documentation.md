@@ -119,3 +119,55 @@ Each AI critique block details:
   - **Fixed:** Added domain methods to `Class` (`Validate`, `MatchesSubject`) with unit tests in `api/class_test.go`.
   - **Fixed:** Added domain methods to `Assignment`, `Question`, and `Submission` (`Validate`, `IsLate`, `TotalPoints`, `GradeSubmission`, `EvaluateFeedback`, `EvaluateAnswer`, `GetAnswerForQuestion`) with unit tests in `grading_test.go`.
   - **Fixed:** Updated UML class diagram in `README.md` so that every method is an actual domain method on the struct, and styled planned external services with `style <Class> stroke-dasharray: 5 5` and `<<planned>>`.
+
+---
+
+## 6. Admin Dashboard: School-Wide Metrics & Class Scheduling (`27-admin-dashboard-class-scheduling-teacher-assignment`)
+
+### Context & Implementation
+- Created `backend/admin/` package (`models.go`, `handlers.go`, `admin_test.go`) implementing:
+  - Domain models and pure business rules: `CalculateSchoolMetrics()`, `(c *AdminClassSection) Validate(assignedUserRole string) error`, and `ValidateStudentEnrollment(studentID string, existingStudentIDs []string) error`.
+  - Role-based middleware (`AdminRoleMiddleware()`) enforcing admin authorization via JWT or `X-User-Role` header.
+  - REST endpoints: `GET /api/admin/metrics`, `GET /api/admin/teachers`, `GET /api/admin/students`, `GET /api/admin/classes`, `POST /api/admin/classes`, `POST /api/admin/classes/:classId/enroll`, and `DELETE /api/admin/classes/:classId/enroll/:studentId`.
+- Built `frontend/components/dashboards/AdminDashboard.tsx` and `frontend/components/dashboards/AdminDashboard.test.tsx`, and wired role-based rendering in `frontend/app/page.tsx`.
+- Resolved all Frontend CI ESLint errors (`react-hooks/preserve-manual-memoization` in `assignments/page.tsx` and `quizzes/page.tsx`) and warnings.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked domain validation rules for class creation (non-empty name/subject/room/teacher and verifying the assigned user holds the `teacher` role), duplicate student enrollment prevention, and zero-division guards in attendance rate calculations.
+  - Checked React Compiler memoization dependency inference (`react-hooks/preserve-manual-memoization`) on `useCallback` hooks in Next.js client pages.
+  - Checked Node 22+ / Vitest jsdom compatibility when accessing `window.localStorage` in `AdminDashboard.tsx`.
+- **What was wrong:**
+  - **React Compiler Memoization Mismatch:** Passing `[classId, user?.id, user?.role]` directly in `useCallback` caused the React Compiler ESLint plugin to fail CI because `user` was accessed inside the callback body, making the inferred dependency (`user`) less specific than the manual dependency array.
+  - **Node 22+ `localStorage.getItem` Runtime Exception in Vitest:** Calling `localStorage.getItem("token")` only after `typeof window !== "undefined"` threw `TypeError: localStorage.getItem is not a function` in Node 22's experimental WebStorage environment during Vitest execution, causing `loadDashboardData()` to fail silently in tests.
+- **What was fixed or kept:**
+  - **Fixed:** Destructured `const userId = user?.id; const userRole = user?.role;` prior to `useCallback` in `assignments/page.tsx` and `quizzes/page.tsx` so manual dependencies match inferred primitive values.
+  - **Fixed:** Guarded `window.localStorage?.getItem` with `typeof window.localStorage?.getItem === "function"` in `buildAdminHeaders()`.
+  - **Kept:** Kept the pure domain functions (`CalculateSchoolMetrics`, `AdminClassSection.Validate`, `ValidateStudentEnrollment`) and full unit/component test suites across Go and Vitest.
+
+---
+
+## 7. Admin Dashboard: User Management & Directory (`26-admin-dashboard-user-management-directory`)
+
+### Context & Implementation
+- Extended `backend/admin/` (`models.go`, `handlers.go`, `admin_test.go`) with User Management & Directory capabilities:
+  - Domain models and pure business rules: `AdminUserRecord.MatchesFilter()`, `FilterUsers()`, `CreateUserRequest.Validate()`, `HashUserPassword()`, and `ValidateParentStudentLink()`.
+  - Service endpoints: `GET /api/admin/users` (with optional `role` and `search` query parameters), `POST /api/admin/users` (hashes password with bcrypt, creates `public.users` record, and initializes `public.students` or `public.teachers` rows as needed), and `POST /api/admin/parent-links` (validates parent and student roles, prevents duplicate links, and persists `parent_id` on `public.students`).
+- Extended `frontend/components/dashboards/AdminDashboard.tsx` and `frontend/components/dashboards/AdminDashboard.test.tsx` with:
+  - Searchable, role-filterable User Directory table showing School ID, Full Name, Email, Role badge, and Family / Portal Links.
+  - "Create New User Account" modal and "Link Parent to Student Account" modal with optimistic state updates and validation feedback.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked domain validation when creating users (`CreateUserRequest.Validate()`) to ensure it delegates to `auth.User.Validate()` for email format and role whitelist while additionally enforcing password minimum length (`>= 6` characters) and non-empty first/last names.
+  - Checked parent-student linking schema against `backend/attendance/handlers.go` (`getParentOverview`) to ensure parent-child links created in the Admin Dashboard immediately work in the Parent Portal.
+- **What was wrong:**
+  - **Parent-Student Schema Alignment:** An initial assumption was a separate `parent_students` join table, whereas `getParentOverview` in `backend/attendance/handlers.go` queries `FROM public.students s JOIN public.users u ON s.user_id = u."ID" WHERE s.parent_id::text = $1`. Using a different table would have prevented newly linked children from appearing in the Parent Portal.
+  - **Duplicate Text Assertion in Tests:** Once the User Directory table was added alongside the Class Schedule table, `"Timmy Teacher"` appeared in both tables, requiring `screen.getAllByText("Timmy Teacher")` rather than `screen.getByText("Timmy Teacher")`.
+- **What was fixed or kept:**
+  - **Fixed:** Implemented `getAdminUsers` and `postParentStudentLink` directly against `public.students.parent_id` so links created by an admin are immediately reflected in the Parent Portal.
+  - **Fixed:** Automatically provisioned `public.students` or `public.teachers` rows when `POST /api/admin/users` creates a student or teacher account.
+  - **Kept:** Kept pure domain filtering (`FilterUsers`, `MatchesFilter`) and validation (`ValidateParentStudentLink`, `CreateUserRequest.Validate`) with unit tests in `backend/admin/admin_test.go` and component tests in `AdminDashboard.test.tsx`.
+

@@ -23,6 +23,9 @@ export default function QuizzesPage({
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [selectedQuiz, setSelectedQuiz] = useState<AssignmentData | null>(null);
 
+  const userId = user?.id;
+  const userRole = user?.role;
+
   const loadQuizzesAndSubmissions = useCallback(() => {
     fetch(`http://localhost:6769/api/classes/${classId}/assignments`)
       .then((res) => res.json())
@@ -35,10 +38,10 @@ export default function QuizzesPage({
       })
       .catch((err) => console.error("Error fetching quizzes:", err));
 
-    if (user?.id) {
+    if (userId) {
       const query =
-        user.role === "student"
-          ? `?student_id=${encodeURIComponent(user.id)}`
+        userRole === "student"
+          ? `?student_id=${encodeURIComponent(userId)}`
           : "";
       fetch(`http://localhost:6769/api/classes/${classId}/submissions${query}`)
         .then((res) => res.json())
@@ -49,7 +52,7 @@ export default function QuizzesPage({
         })
         .catch((err) => console.error("Error fetching quiz submissions:", err));
     }
-  }, [classId, user?.id, user?.role]);
+  }, [classId, userId, userRole]);
 
   useEffect(() => {
     loadQuizzesAndSubmissions();

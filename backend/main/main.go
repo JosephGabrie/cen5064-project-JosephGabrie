@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"MTVSChool/admin"
 	"MTVSChool/api"
 	"MTVSChool/assignments"
 	"MTVSChool/attendance"
@@ -55,6 +56,7 @@ func main() {
 	api.GetUserClassess(app, conn)
 	assignments.SetupAssignmentRoutes(app, conn)
 	attendance.SetupAttendanceAndPortalRoutes(app, conn)
+	admin.SetupAdminRoutes(app, conn)
 
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Hello World")
