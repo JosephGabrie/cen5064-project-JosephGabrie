@@ -1,35 +1,56 @@
 "use client";
+
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { CardImage } from "@/components/ui/class-card"
+import { CardImage } from "@/components/ui/class-card";
+import { AdminDashboard } from "@/components/dashboards/AdminDashboard";
+import ParentDashboard from "@/components/dashboards/ParentDashboard";
+
+interface DashboardClassItem {
+  id: string;
+  name: string;
+  subject: string;
+  teacher: string;
+  roomNumber?: string;
+  room_Number?: string;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  // 1. Added <any[]> so TypeScript knows it's an array of objects
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<DashboardClassItem[]>([]);
 
   useEffect(() => {
     if (!user || !user.id) return;
+    const role = user.role?.toLowerCase();
+    if (role === "admin" || role === "parent") return;
 
     const fetchClasses = async () => {
       try {
-        // 2. Fixed the port from 6760 to 6769 (assuming your Go server is still on 6769!)
-        const response = await fetch(`http://localhost:6769/${user.id}/dashboard`);
+        const response = await fetch(
+          `http://localhost:6769/${user.id}/dashboard`
+        );
         const data = await response.json();
 
-        if (response.ok) {
+        if (response.ok && Array.isArray(data)) {
           setClasses(data);
         } else {
           console.error("failed to fetch classes:", data.error);
         }
       } catch (error) {
-        // 3. The catch block was accidentally placed *inside* the try block previously! 
-        // We added the closing bracket '}' right above this line to close the try block.
         console.error("Network error:", error);
       }
-    }; // 4. Placed a semicolon here to properly close the fetchClasses function
+    };
 
     fetchClasses();
-  }, [user]); // 5. Fixed the bracket syntax for the useEffect dependency array
+  }, [user]);
+
+  if (user?.role?.toLowerCase() === "admin") {
+    return <AdminDashboard />;
+  }
+
+  if (user?.role?.toLowerCase() === "parent" && user.id) {
+    return <ParentDashboard parentId={user.id} />;
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2 lg:grid-cols-3">
@@ -40,7 +61,7 @@ export default function DashboardPage() {
           courseName={c.name}
           subject={c.subject}
           teacher={c.teacher}
-          roomNumber={c.roomNumber}
+          roomNumber={c.roomNumber || c.room_Number || ""}
         />
       ))}
     </div>
