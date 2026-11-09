@@ -146,3 +146,53 @@ Each AI critique block details:
   - **Fixed:** Guarded `window.localStorage?.getItem` with `typeof window.localStorage?.getItem === "function"` in `buildAdminHeaders()`.
   - **Kept:** Kept the pure domain functions (`CalculateSchoolMetrics`, `AdminClassSection.Validate`, `ValidateStudentEnrollment`) and full unit/component test suites across Go and Vitest.
 
+---
+
+## 7. Admin Dashboard: User Management & Directory (`26-admin-dashboard-user-management-directory`)
+
+### Context & Implementation
+- Extended `backend/admin/` (`models.go`, `handlers.go`, `admin_test.go`) with User Management & Directory capabilities:
+  - Domain models and pure business rules: `AdminUserRecord.MatchesFilter()`, `FilterUsers()`, `CreateUserRequest.Validate()`, `HashUserPassword()`, and `ValidateParentStudentLink()`.
+  - Service endpoints: `GET /api/admin/users` (with optional `role` and `search` query parameters), `POST /api/admin/users` (hashes password with bcrypt, creates `public.users` record, and initializes `public.students` or `public.teachers` rows as needed), and `POST /api/admin/parent-links` (validates parent and student roles, prevents duplicate links, and persists `parent_id` on `public.students`).
+- Extended `frontend/components/dashboards/AdminDashboard.tsx` and `frontend/components/dashboards/AdminDashboard.test.tsx` with:
+  - Searchable, role-filterable User Directory table showing School ID, Full Name, Email, Role badge, and Family / Portal Links.
+  - "Create New User Account" modal and "Link Parent to Student Account" modal with optimistic state updates and validation feedback.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked domain validation when creating users (`CreateUserRequest.Validate()`) to ensure it delegates to `auth.User.Validate()` for email format and role whitelist while additionally enforcing password minimum length (`>= 6` characters) and non-empty first/last names.
+  - Checked parent-student linking schema against `backend/attendance/handlers.go` (`getParentOverview`) to ensure parent-child links created in the Admin Dashboard immediately work in the Parent Portal.
+- **What was wrong:**
+  - **Parent-Student Schema Alignment:** An initial assumption was a separate `parent_students` join table, whereas `getParentOverview` in `backend/attendance/handlers.go` queries `FROM public.students s JOIN public.users u ON s.user_id = u."ID" WHERE s.parent_id::text = $1`. Using a different table would have prevented newly linked children from appearing in the Parent Portal.
+  - **Duplicate Text Assertion in Tests:** Once the User Directory table was added alongside the Class Schedule table, `"Timmy Teacher"` appeared in both tables, requiring `screen.getAllByText("Timmy Teacher")` rather than `screen.getByText("Timmy Teacher")`.
+- **What was fixed or kept:**
+  - **Fixed:** Implemented `getAdminUsers` and `postParentStudentLink` directly against `public.students.parent_id` so links created by an admin are immediately reflected in the Parent Portal.
+  - **Fixed:** Automatically provisioned `public.students` or `public.teachers` rows when `POST /api/admin/users` creates a student or teacher account.
+  - **Kept:** Kept pure domain filtering (`FilterUsers`, `MatchesFilter`) and validation (`ValidateParentStudentLink`, `CreateUserRequest.Validate`) with unit tests in `backend/admin/admin_test.go` and component tests in `AdminDashboard.test.tsx`.
+
+---
+
+## 8. Admin Dashboard: School-Wide Metrics & Operational Breakdown (`25-admin-dashboard-school-wide-metrics-overview`)
+
+### Context & Implementation
+- Enhanced `SchoolMetrics` and `CalculateSchoolMetrics()` in `backend/admin/models.go` with:
+  - `TotalParents`, `TotalAdmins`, `StudentTeacherRatio` (computed with a zero-division guard when `teacherCount == 0`), and `AttendanceStatus`.
+  - Pure domain method `(m *SchoolMetrics) EvaluateAttendanceStatus() string` classifying daily campus attendance into `"Healthy"` (`>= 90%`), `"Moderate"` (`>= 75%`), `"Needs Attention"` (`< 75%`), or `"No Records Today"` (`0` records).
+- Updated `getSchoolMetrics` and `SetupAdminRoutes` in `backend/admin/handlers.go` to query parent and admin headcounts and support both `/api/admin/parent-links` and `/api/admin/parents/link` route paths.
+- Enhanced `frontend/components/dashboards/AdminDashboard.tsx` with the **Campus Attendance Status & Student-to-Teacher Ratio** breakdown panel (`data-testid="school-metrics-breakdown"`), visual daily attendance progress bar, and optional `School ID (Optional)` field in the user creation modal.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked every requirement in the "Done when" checklists across School-Wide Metrics, User Management & Directory, and Class Scheduling & Teacher Assignment.
+  - Verified zero-division safety in `CalculateSchoolMetrics` when `teacherCount == 0` or `TotalRecordedToday == 0`.
+  - Checked endpoint route path consistency between `/api/admin/parent-links` and `/api/admin/parents/link`.
+- **What was wrong:**
+  - **Zero-Teacher Ratio Edge Case:** Computing `float64(studentCount) / float64(teacherCount)` without a `teacherCount > 0` check would produce `+Inf` or `NaN` in JSON serialization when a fresh database has 0 teachers.
+  - **Missing Optional Identifier Field in User Modal:** The "Done when" checklist specified an optional Identifier/ID field in the Add New User modal, which was supported in the backend (`CreateUserRequest.ID`) but initially omitted from the modal inputs.
+- **What was fixed or kept:**
+  - **Fixed:** Guarded `StudentTeacherRatio` calculation with `if teacherCount > 0` and added unit test assertions in `TestCalculateSchoolMetrics`.
+  - **Fixed:** Added the `School ID (Optional)` input field to the Create User modal in `AdminDashboard.tsx` and registered `/api/admin/parents/link` alongside `/api/admin/parent-links`.
+  - **Kept:** Retained the unified Admin Dashboard architecture across all three feature branches with 100% passing Go and Vitest suites.
+

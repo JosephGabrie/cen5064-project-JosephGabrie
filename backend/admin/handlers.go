@@ -69,10 +69,12 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 		}
 
 		ctx := context.Background()
-		var studentCount, teacherCount, classCount int
+		var studentCount, teacherCount, parentCount, adminCount, classCount int
 
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'student'`).Scan(&studentCount)
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'teacher'`).Scan(&teacherCount)
+		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'parent'`).Scan(&parentCount)
+		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'admin'`).Scan(&adminCount)
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.class`).Scan(&classCount)
 
 		statuses := []string{}
@@ -104,6 +106,8 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 		}
 
 		metrics := CalculateSchoolMetrics(studentCount, teacherCount, classCount, statuses)
+		metrics.TotalParents = parentCount
+		metrics.TotalAdmins = adminCount
 		return c.JSON(metrics)
 	}
 }
@@ -399,5 +403,232 @@ func deleteEnrollStudent(conn *pgxpool.Pool) fiber.Handler {
 		}
 
 		return c.JSON(fiber.Map{"status": "removed", "class_id": classID, "student_id": studentID})
+	}
+}
+
+func getAdminUsers(conn *pgxpool.Pool) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if conn == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database connection missing"})
+		}
+
+		ctx := context.Background()
+		query := `
+			SELECT u."ID"::text,
+			       COALESCE(u."FirstName", ''),
+			       COALESCE(u."LastName", ''),
+			       COALESCE(u."Email", ''),
+			       LOWER(COALESCE(u."Role", 'student')),
+			       COALESCE(u."Birthday"::text, ''),
+			       COALESCE(u."Address", ''),
+			       COALESCE(s.parent_id::text, '')
+			FROM public.users u
+			LEFT JOIN public.students s ON s.user_id = u."ID"
+			ORDER BY u."FirstName" ASC, u."LastName" ASC
+		`
+		rows, err := conn.Query(ctx, query)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch users: " + err.Error()})
+		}
+		defer rows.Close()
+
+		users := []AdminUserRecord{}
+		parentChildrenMap := make(map[string][]string)
+
+		for rows.Next() {
+			var u AdminUserRecord
+			if err := rows.Scan(
+				&u.ID,
+				&u.FirstName,
+				&u.LastName,
+				&u.Email,
+				&u.Role,
+				&u.Birthday,
+				&u.Address,
+				&u.LinkedParentID,
+			); err == nil {
+				if u.LinkedParentID != "" {
+					parentChildrenMap[u.LinkedParentID] = append(parentChildrenMap[u.LinkedParentID], u.ID)
+				}
+				users = append(users, u)
+			}
+		}
+
+		for i := range users {
+			if children, ok := parentChildrenMap[users[i].ID]; ok {
+				users[i].LinkedStudentIDs = children
+			}
+		}
+
+		roleFilter := c.Query("role")
+		searchQuery := c.Query("search")
+		filtered := FilterUsers(users, roleFilter, searchQuery)
+		return c.JSON(filtered)
+	}
+}
+
+func postAdminUser(conn *pgxpool.Pool) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		var req CreateUserRequest
+		if err := c.Bind().Body(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON body"})
+		}
+
+		if err := req.Validate(); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		hashPass, err := HashUserPassword(req.Password)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if conn == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database connection missing"})
+		}
+
+		ctx := context.Background()
+		userID := strings.TrimSpace(req.ID)
+		normalizedRole := strings.ToLower(strings.TrimSpace(req.Role))
+		if userID == "" {
+			userID = GenerateSchoolUserID(normalizedRole)
+		}
+
+		var existingCount int
+		_ = conn.QueryRow(ctx, `
+			SELECT COUNT(*) FROM public.users
+			WHERE "ID"::text = $1 OR LOWER(COALESCE("Email", '')) = LOWER($2)
+		`, userID, strings.TrimSpace(req.Email)).Scan(&existingCount)
+		if existingCount > 0 {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "A user with this ID or email already exists"})
+		}
+
+		var birthdayPtr *string
+		if strings.TrimSpace(req.Birthday) != "" {
+			b := strings.TrimSpace(req.Birthday)
+			birthdayPtr = &b
+		}
+		var addressPtr *string
+		if strings.TrimSpace(req.Address) != "" {
+			a := strings.TrimSpace(req.Address)
+			addressPtr = &a
+		}
+		emailVal := strings.TrimSpace(req.Email)
+
+		var createdID string
+		err = conn.QueryRow(ctx, `
+			INSERT INTO public.users ("ID", "FirstName", "LastName", "Birthday", "Address", "Role", "Email", password_hash)
+			VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING "ID"::text
+		`,
+			userID,
+			strings.TrimSpace(req.FirstName),
+			strings.TrimSpace(req.LastName),
+			birthdayPtr,
+			addressPtr,
+			normalizedRole,
+			emailVal,
+			hashPass,
+		).Scan(&createdID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create user: " + err.Error()})
+		}
+
+		if normalizedRole == "student" {
+			_, _ = conn.Exec(ctx, `INSERT INTO public.students (user_id) VALUES ($1::bigint) ON CONFLICT DO NOTHING`, createdID)
+		} else if normalizedRole == "teacher" {
+			_, _ = conn.Exec(ctx, `INSERT INTO public.teachers (user_id) VALUES ($1::bigint) ON CONFLICT DO NOTHING`, createdID)
+		}
+
+		createdUser := AdminUserRecord{
+			ID:        createdID,
+			FirstName: strings.TrimSpace(req.FirstName),
+			LastName:  strings.TrimSpace(req.LastName),
+			Email:     emailVal,
+			Role:      normalizedRole,
+			Birthday:  strings.TrimSpace(req.Birthday),
+			Address:   strings.TrimSpace(req.Address),
+		}
+		return c.Status(fiber.StatusCreated).JSON(createdUser)
+	}
+}
+
+func postParentStudentLink(conn *pgxpool.Pool) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		var req ParentStudentLinkRequest
+		if err := c.Bind().Body(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON body"})
+		}
+
+		parentID := strings.TrimSpace(req.ParentID)
+		studentID := strings.TrimSpace(req.StudentID)
+		if parentID == "" || studentID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": ErrMissingParentOrStudentID.Error()})
+		}
+
+		if conn == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database connection missing"})
+		}
+
+		ctx := context.Background()
+		var parentRole string
+		err := conn.QueryRow(ctx, `SELECT COALESCE("Role", '') FROM public.users WHERE "ID"::text = $1`, parentID).Scan(&parentRole)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Parent user not found"})
+		}
+
+		var studentRole string
+		err = conn.QueryRow(ctx, `SELECT COALESCE("Role", '') FROM public.users WHERE "ID"::text = $1`, studentID).Scan(&studentRole)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Student user not found"})
+		}
+
+		existingLinks := []string{}
+		linkRows, err := conn.Query(ctx, `
+			SELECT user_id::text FROM public.students WHERE parent_id::text = $1
+		`, parentID)
+		if err == nil {
+			for linkRows.Next() {
+				var sID string
+				if err := linkRows.Scan(&sID); err == nil {
+					existingLinks = append(existingLinks, sID)
+				}
+			}
+			linkRows.Close()
+		}
+
+		if err := ValidateParentStudentLink(parentID, parentRole, studentID, studentRole, existingLinks); err != nil {
+			status := fiber.StatusBadRequest
+			if err == ErrDuplicateParentStudentLink {
+				status = fiber.StatusConflict
+			}
+			return c.Status(status).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		var studentRowID string
+		_ = conn.QueryRow(ctx, `SELECT id::text FROM public.students WHERE user_id::text = $1 LIMIT 1`, studentID).Scan(&studentRowID)
+		if studentRowID == "" {
+			err = conn.QueryRow(ctx, `
+				INSERT INTO public.students (user_id, parent_id)
+				VALUES ($1::bigint, $2::bigint)
+				RETURNING id::text
+			`, studentID, parentID).Scan(&studentRowID)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to link parent to student: " + err.Error()})
+			}
+		} else {
+			_, err = conn.Exec(ctx, `
+				UPDATE public.students SET parent_id = $1::bigint WHERE id::text = $2
+			`, parentID, studentRowID)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update parent-student link: " + err.Error()})
+			}
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"status":     "linked",
+			"parent_id":  parentID,
+			"student_id": studentID,
+		})
 	}
 }

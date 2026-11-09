@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,19 @@ import {
   UserPlus,
   Trash2,
   X,
+  Search,
+  Link2,
 } from "lucide-react";
 
 export interface SchoolMetricsData {
   total_students: number;
   total_teachers: number;
+  total_parents?: number;
+  total_admins?: number;
   active_classes: number;
+  student_teacher_ratio?: number;
   attendance_rate: number;
+  attendance_status?: string;
   present_today: number;
   absent_today: number;
   tardy_today: number;
@@ -55,6 +61,18 @@ export interface AdminClassSectionData {
   students: AdminEnrolledStudent[];
 }
 
+export interface AdminUserDirectoryRecord {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+  birthday?: string;
+  address?: string;
+  linked_parent_id?: string;
+  linked_student_ids?: string[];
+}
+
 function buildAdminHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -77,7 +95,37 @@ export function AdminDashboard() {
   const [classes, setClasses] = useState<AdminClassSectionData[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacherOption[]>([]);
   const [allStudents, setAllStudents] = useState<AdminEnrolledStudent[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<
+    AdminUserDirectoryRecord[]
+  >([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // User Directory Filter State
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
+
+  // Create User Modal State
+  const [showCreateUserModal, setShowCreateUserModal] =
+    useState<boolean>(false);
+  const [newUserId, setNewUserId] = useState<string>("");
+  const [newUserFirstName, setNewUserFirstName] = useState<string>("");
+  const [newUserLastName, setNewUserLastName] = useState<string>("");
+  const [newUserEmail, setNewUserEmail] = useState<string>("");
+  const [newUserRole, setNewUserRole] = useState<string>("student");
+  const [newUserPassword, setNewUserPassword] = useState<string>("");
+  const [createUserError, setCreateUserError] = useState<string>("");
+  const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
+
+  // Link Parent to Student Modal State
+  const [showLinkParentModal, setShowLinkParentModal] =
+    useState<boolean>(false);
+  const [linkParentId, setLinkParentId] = useState<string>("");
+  const [linkStudentId, setLinkStudentId] = useState<string>("");
+  const [linkStatusMessage, setLinkStatusMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [isLinkingParent, setIsLinkingParent] = useState<boolean>(false);
 
   // Create Class Modal State
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -101,12 +149,13 @@ export function AdminDashboard() {
     setLoading(true);
     try {
       const headers = buildAdminHeaders();
-      const [metricsRes, classesRes, teachersRes, studentsRes] =
+      const [metricsRes, classesRes, teachersRes, studentsRes, usersRes] =
         await Promise.all([
           fetch("http://localhost:6769/api/admin/metrics", { headers }),
           fetch("http://localhost:6769/api/admin/classes", { headers }),
           fetch("http://localhost:6769/api/admin/teachers", { headers }),
           fetch("http://localhost:6769/api/admin/students", { headers }),
+          fetch("http://localhost:6769/api/admin/users", { headers }),
         ]);
 
       if (metricsRes.ok) {
@@ -131,6 +180,12 @@ export function AdminDashboard() {
           setAllStudents(sData);
         }
       }
+      if (usersRes && usersRes.ok) {
+        const uData: AdminUserDirectoryRecord[] = await usersRes.json();
+        if (Array.isArray(uData)) {
+          setDirectoryUsers(uData);
+        }
+      }
     } catch (err) {
       console.error("Failed to load admin dashboard data:", err);
     } finally {
@@ -142,7 +197,186 @@ export function AdminDashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  const filteredDirectoryUsers = useMemo(() => {
+    const normalizedRole = userRoleFilter.trim().toLowerCase();
+    const q = userSearchQuery.trim().toLowerCase();
+    return directoryUsers.filter((u) => {
+      if (
+        normalizedRole &&
+        normalizedRole !== "all" &&
+        u.role.toLowerCase() !== normalizedRole
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const fullName = `${u.first_name} ${u.last_name}`.toLowerCase();
+      return (
+        fullName.includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.id.toLowerCase().includes(q)
+      );
+    });
+  }, [directoryUsers, userRoleFilter, userSearchQuery]);
+
+  const parentDirectoryOptions = useMemo(
+    () => directoryUsers.filter((u) => u.role.toLowerCase() === "parent"),
+    [directoryUsers]
+  );
+
+  const studentDirectoryOptions = useMemo(
+    () => directoryUsers.filter((u) => u.role.toLowerCase() === "student"),
+    [directoryUsers]
+  );
+
   const activeRosterClass = classes.find((c) => c.id === rosterClassId) || null;
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateUserError("");
+
+    if (
+      !newUserFirstName.trim() ||
+      !newUserLastName.trim() ||
+      !newUserEmail.trim() ||
+      !newUserRole.trim() ||
+      !newUserPassword.trim()
+    ) {
+      setCreateUserError("All user fields are required.");
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      const response = await fetch("http://localhost:6769/api/admin/users", {
+        method: "POST",
+        headers: buildAdminHeaders(),
+        body: JSON.stringify({
+          id: newUserId.trim(),
+          first_name: newUserFirstName.trim(),
+          last_name: newUserLastName.trim(),
+          email: newUserEmail.trim(),
+          role: newUserRole.trim().toLowerCase(),
+          password: newUserPassword,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setCreateUserError(data.error || "Failed to create user.");
+        return;
+      }
+
+      setDirectoryUsers((prev) => [...prev, data]);
+      if (data.role === "student") {
+        setAllStudents((prev) => [
+          ...prev,
+          {
+            student_id: data.id,
+            internal_id: data.id,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            email: data.email,
+          },
+        ]);
+        setMetrics((prev) =>
+          prev ? { ...prev, total_students: prev.total_students + 1 } : prev
+        );
+      } else if (data.role === "teacher") {
+        setTeachers((prev) => [
+          ...prev,
+          {
+            id: data.id,
+            user_id: data.id,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            email: data.email,
+            role: "teacher",
+          },
+        ]);
+        setMetrics((prev) =>
+          prev ? { ...prev, total_teachers: prev.total_teachers + 1 } : prev
+        );
+      }
+
+      setNewUserId("");
+      setNewUserFirstName("");
+      setNewUserLastName("");
+      setNewUserEmail("");
+      setNewUserRole("student");
+      setNewUserPassword("");
+      setShowCreateUserModal(false);
+    } catch {
+      setCreateUserError("Network error while creating user.");
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const handleLinkParentStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLinkStatusMessage(null);
+
+    if (!linkParentId || !linkStudentId) {
+      setLinkStatusMessage({
+        type: "error",
+        text: "Please select both a parent account and a student account.",
+      });
+      return;
+    }
+
+    setIsLinkingParent(true);
+    try {
+      const response = await fetch(
+        "http://localhost:6769/api/admin/parent-links",
+        {
+          method: "POST",
+          headers: buildAdminHeaders(),
+          body: JSON.stringify({
+            parent_id: linkParentId,
+            student_id: linkStudentId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        setLinkStatusMessage({
+          type: "error",
+          text: data.error || "Failed to link parent and student.",
+        });
+        return;
+      }
+
+      setDirectoryUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === linkStudentId) {
+            return { ...u, linked_parent_id: linkParentId };
+          }
+          if (u.id === linkParentId) {
+            const current = u.linked_student_ids || [];
+            if (!current.includes(linkStudentId)) {
+              return { ...u, linked_student_ids: [...current, linkStudentId] };
+            }
+          }
+          return u;
+        })
+      );
+
+      setLinkStatusMessage({
+        type: "success",
+        text: `Linked parent (${linkParentId}) to student (${linkStudentId}) successfully.`,
+      });
+      setLinkParentId("");
+      setLinkStudentId("");
+    } catch {
+      setLinkStatusMessage({
+        type: "error",
+        text: "Network error while linking parent and student.",
+      });
+    } finally {
+      setIsLinkingParent(false);
+    }
+  };
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,6 +665,81 @@ export function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {!loading && metrics && (
+            <div
+              data-testid="school-metrics-breakdown"
+              className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3"
+            >
+              <div className="flex flex-col justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Campus Attendance Status
+                </span>
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    data-testid="kpi-attendance-status"
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      metrics.attendance_status === "Healthy" ||
+                      metrics.attendance_rate >= 90
+                        ? "bg-emerald-50 text-emerald-700"
+                        : metrics.attendance_status === "Moderate" ||
+                            metrics.attendance_rate >= 75
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {metrics.attendance_status ||
+                      (metrics.total_recorded_today > 0
+                        ? metrics.attendance_rate >= 90
+                          ? "Healthy"
+                          : "Moderate"
+                        : "No Records Today")}
+                  </span>
+                  <span
+                    data-testid="kpi-total-recorded-today"
+                    className="text-xs text-slate-500"
+                  >
+                    ({metrics.total_recorded_today} logs recorded today)
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Student-to-Teacher Ratio
+                </span>
+                <p
+                  data-testid="kpi-student-teacher-ratio"
+                  className="mt-2 text-lg font-bold text-slate-900"
+                >
+                  {metrics.student_teacher_ratio ??
+                    (metrics.total_teachers > 0
+                      ? Math.round(
+                          (metrics.total_students / metrics.total_teachers) * 10
+                        ) / 10
+                      : 0)}{" "}
+                  : 1
+                </p>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-semibold uppercase tracking-wider text-slate-500">
+                    Daily Attendance Breakdown
+                  </span>
+                  <span>{metrics.attendance_rate}% Present/Tardy</span>
+                </div>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, metrics.attendance_rate))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Class Scheduling & Teacher Assignment Section */}
@@ -517,6 +826,423 @@ export function AdminDashboard() {
             </div>
           </div>
         </section>
+
+        {/* User Management & Directory Section */}
+        <section aria-labelledby="user-directory-heading" className="space-y-4">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2
+                id="user-directory-heading"
+                className="text-lg font-semibold text-slate-900"
+              >
+                User Management &amp; Directory
+              </h2>
+              <p className="text-xs text-slate-500">
+                Search and filter school accounts by role, onboard new users, and link parents to students.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="open-link-parent-modal"
+                onClick={() => {
+                  setLinkStatusMessage(null);
+                  setLinkParentId("");
+                  setLinkStudentId("");
+                  setShowLinkParentModal(true);
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <Link2 className="h-4 w-4" />
+                Link Parent &amp; Student
+              </Button>
+              <Button
+                type="button"
+                data-testid="open-create-user-modal"
+                onClick={() => {
+                  setCreateUserError("");
+                  setShowCreateUserModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add User
+              </Button>
+            </div>
+          </div>
+
+          {/* Search & Role Filter Controls */}
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="text"
+                aria-label="Search Users"
+                data-testid="user-search-input"
+                placeholder="Search by name, email, or ID..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="user-role-filter"
+                className="text-xs font-semibold uppercase text-slate-500"
+              >
+                Role:
+              </label>
+              <select
+                id="user-role-filter"
+                aria-label="Filter by Role"
+                data-testid="user-role-filter"
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="teacher">Teachers</option>
+                <option value="parent">Parents</option>
+                <option value="admin">Admins</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Directory Table */}
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table
+                data-testid="user-directory-table"
+                className="w-full text-left text-sm"
+              >
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
+                  <tr>
+                    <th className="px-5 py-3.5">School ID</th>
+                    <th className="px-5 py-3.5">Full Name</th>
+                    <th className="px-5 py-3.5">Email</th>
+                    <th className="px-5 py-3.5">Role</th>
+                    <th className="px-5 py-3.5">Family / Portal Link</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredDirectoryUsers.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-5 py-8 text-center text-slate-500"
+                      >
+                        No matching user accounts found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDirectoryUsers.map((u) => {
+                      const roleLower = u.role.toLowerCase();
+                      let badgeClasses = "bg-slate-100 text-slate-700";
+                      if (roleLower === "student") {
+                        badgeClasses = "bg-blue-50 text-blue-700";
+                      } else if (roleLower === "teacher") {
+                        badgeClasses = "bg-indigo-50 text-indigo-700";
+                      } else if (roleLower === "parent") {
+                        badgeClasses = "bg-amber-50 text-amber-700";
+                      } else if (roleLower === "admin") {
+                        badgeClasses = "bg-emerald-50 text-emerald-700";
+                      }
+
+                      return (
+                        <tr
+                          key={u.id}
+                          className="transition-colors hover:bg-slate-50/80"
+                        >
+                          <td className="px-5 py-3.5 font-mono text-xs text-slate-600">
+                            {u.id}
+                          </td>
+                          <td className="px-5 py-3.5 font-semibold text-slate-900">
+                            {u.first_name} {u.last_name}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-600">
+                            {u.email || "—"}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${badgeClasses}`}
+                            >
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-slate-600">
+                            {roleLower === "student" && u.linked_parent_id ? (
+                              <span className="rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+                                Parent ID: {u.linked_parent_id}
+                              </span>
+                            ) : roleLower === "parent" &&
+                              u.linked_student_ids &&
+                              u.linked_student_ids.length > 0 ? (
+                              <span className="rounded bg-blue-50 px-2 py-0.5 font-medium text-blue-800">
+                                Linked Children: {u.linked_student_ids.join(", ")}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Create User Modal */}
+        {showCreateUserModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Create New User Account
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close user modal"
+                  onClick={() => setShowCreateUserModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="new-user-first-name"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      First Name
+                    </label>
+                    <Input
+                      id="new-user-first-name"
+                      aria-label="First Name"
+                      placeholder="e.g. Elena"
+                      value={newUserFirstName}
+                      onChange={(e) => setNewUserFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="new-user-last-name"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      Last Name
+                    </label>
+                    <Input
+                      id="new-user-last-name"
+                      aria-label="Last Name"
+                      placeholder="e.g. Rivera"
+                      value={newUserLastName}
+                      onChange={(e) => setNewUserLastName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="new-user-email"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    Email Address
+                  </label>
+                  <Input
+                    id="new-user-email"
+                    type="email"
+                    aria-label="Email Address"
+                    placeholder="e.g. elena.rivera@school.edu"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="new-user-id"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    School ID (Optional)
+                  </label>
+                  <Input
+                    id="new-user-id"
+                    aria-label="School ID (Optional)"
+                    placeholder="Auto-generated if left blank"
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="new-user-role"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    User Role
+                  </label>
+                  <select
+                    id="new-user-role"
+                    aria-label="User Role"
+                    value={newUserRole}
+                    onChange={(e) => setNewUserRole(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="parent">Parent</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="new-user-password"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    Initial Password
+                  </label>
+                  <Input
+                    id="new-user-password"
+                    type="password"
+                    aria-label="Initial Password"
+                    placeholder="At least 6 characters"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                  />
+                </div>
+
+                {createUserError && (
+                  <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-600">
+                    {createUserError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCreateUserModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isCreatingUser}
+                    className="bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    {isCreatingUser ? "Creating..." : "Create User Account"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Link Parent to Student Modal */}
+        {showLinkParentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Link Parent to Student Account
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close parent link modal"
+                  onClick={() => setShowLinkParentModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleLinkParentStudent} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="link-parent-select"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    Parent Account
+                  </label>
+                  <select
+                    id="link-parent-select"
+                    aria-label="Select Parent Account"
+                    value={linkParentId}
+                    onChange={(e) => setLinkParentId(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Choose a parent...</option>
+                    {parentDirectoryOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.first_name} {p.last_name} (ID: {p.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="link-student-select"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    Student Account
+                  </label>
+                  <select
+                    id="link-student-select"
+                    aria-label="Select Student Account"
+                    value={linkStudentId}
+                    onChange={(e) => setLinkStudentId(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Choose a student...</option>
+                    {studentDirectoryOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.first_name} {s.last_name} (ID: {s.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {linkStatusMessage && (
+                  <p
+                    className={`rounded-md p-2.5 text-xs font-medium ${
+                      linkStatusMessage.type === "success"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {linkStatusMessage.text}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowLinkParentModal(false)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isLinkingParent}
+                    className="bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    {isLinkingParent ? "Linking..." : "Save Parent-Student Link"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Create Class Modal */}
         {showCreateModal && (
