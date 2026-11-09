@@ -171,3 +171,28 @@ Each AI critique block details:
   - **Fixed:** Automatically provisioned `public.students` or `public.teachers` rows when `POST /api/admin/users` creates a student or teacher account.
   - **Kept:** Kept pure domain filtering (`FilterUsers`, `MatchesFilter`) and validation (`ValidateParentStudentLink`, `CreateUserRequest.Validate`) with unit tests in `backend/admin/admin_test.go` and component tests in `AdminDashboard.test.tsx`.
 
+---
+
+## 8. Admin Dashboard: School-Wide Metrics & Operational Breakdown (`25-admin-dashboard-school-wide-metrics-overview`)
+
+### Context & Implementation
+- Enhanced `SchoolMetrics` and `CalculateSchoolMetrics()` in `backend/admin/models.go` with:
+  - `TotalParents`, `TotalAdmins`, `StudentTeacherRatio` (computed with a zero-division guard when `teacherCount == 0`), and `AttendanceStatus`.
+  - Pure domain method `(m *SchoolMetrics) EvaluateAttendanceStatus() string` classifying daily campus attendance into `"Healthy"` (`>= 90%`), `"Moderate"` (`>= 75%`), `"Needs Attention"` (`< 75%`), or `"No Records Today"` (`0` records).
+- Updated `getSchoolMetrics` and `SetupAdminRoutes` in `backend/admin/handlers.go` to query parent and admin headcounts and support both `/api/admin/parent-links` and `/api/admin/parents/link` route paths.
+- Enhanced `frontend/components/dashboards/AdminDashboard.tsx` with the **Campus Attendance Status & Student-to-Teacher Ratio** breakdown panel (`data-testid="school-metrics-breakdown"`), visual daily attendance progress bar, and optional `School ID (Optional)` field in the user creation modal.
+
+### AI Critique Block
+- **AI Tool / Model:** Google Antigravity (Gemini 3.8)
+- **What was checked:**
+  - Checked every requirement in the "Done when" checklists across School-Wide Metrics, User Management & Directory, and Class Scheduling & Teacher Assignment.
+  - Verified zero-division safety in `CalculateSchoolMetrics` when `teacherCount == 0` or `TotalRecordedToday == 0`.
+  - Checked endpoint route path consistency between `/api/admin/parent-links` and `/api/admin/parents/link`.
+- **What was wrong:**
+  - **Zero-Teacher Ratio Edge Case:** Computing `float64(studentCount) / float64(teacherCount)` without a `teacherCount > 0` check would produce `+Inf` or `NaN` in JSON serialization when a fresh database has 0 teachers.
+  - **Missing Optional Identifier Field in User Modal:** The "Done when" checklist specified an optional Identifier/ID field in the Add New User modal, which was supported in the backend (`CreateUserRequest.ID`) but initially omitted from the modal inputs.
+- **What was fixed or kept:**
+  - **Fixed:** Guarded `StudentTeacherRatio` calculation with `if teacherCount > 0` and added unit test assertions in `TestCalculateSchoolMetrics`.
+  - **Fixed:** Added the `School ID (Optional)` input field to the Create User modal in `AdminDashboard.tsx` and registered `/api/admin/parents/link` alongside `/api/admin/parent-links`.
+  - **Kept:** Retained the unified Admin Dashboard architecture across all three feature branches with 100% passing Go and Vitest suites.
+

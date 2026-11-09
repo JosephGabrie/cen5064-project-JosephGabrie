@@ -26,8 +26,12 @@ describe("AdminDashboard", () => {
   const mockMetrics = {
     total_students: 145,
     total_teachers: 18,
+    total_parents: 90,
+    total_admins: 3,
     active_classes: 2,
+    student_teacher_ratio: 8.1,
     attendance_rate: 92.5,
+    attendance_status: "Healthy",
     present_today: 35,
     tardy_today: 2,
     absent_today: 3,
@@ -214,6 +218,12 @@ describe("AdminDashboard", () => {
     expect(screen.getByTestId("kpi-total-teachers")).toHaveTextContent("18");
     expect(screen.getByTestId("kpi-active-classes")).toHaveTextContent("2");
     expect(screen.getByTestId("kpi-attendance-rate")).toHaveTextContent("92.5%");
+    expect(screen.getByTestId("kpi-attendance-status")).toHaveTextContent(
+      "Healthy"
+    );
+    expect(screen.getByTestId("kpi-student-teacher-ratio")).toHaveTextContent(
+      "8.1 : 1"
+    );
     expect(screen.getByText("Grade 5 Mathematics")).toBeInTheDocument();
     expect(screen.getAllByText("Timmy Teacher").length).toBeGreaterThan(0);
   });

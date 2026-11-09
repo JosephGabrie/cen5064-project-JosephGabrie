@@ -21,8 +21,12 @@ import {
 export interface SchoolMetricsData {
   total_students: number;
   total_teachers: number;
+  total_parents?: number;
+  total_admins?: number;
   active_classes: number;
+  student_teacher_ratio?: number;
   attendance_rate: number;
+  attendance_status?: string;
   present_today: number;
   absent_today: number;
   tardy_today: number;
@@ -103,6 +107,7 @@ export function AdminDashboard() {
   // Create User Modal State
   const [showCreateUserModal, setShowCreateUserModal] =
     useState<boolean>(false);
+  const [newUserId, setNewUserId] = useState<string>("");
   const [newUserFirstName, setNewUserFirstName] = useState<string>("");
   const [newUserLastName, setNewUserLastName] = useState<string>("");
   const [newUserEmail, setNewUserEmail] = useState<string>("");
@@ -246,6 +251,7 @@ export function AdminDashboard() {
         method: "POST",
         headers: buildAdminHeaders(),
         body: JSON.stringify({
+          id: newUserId.trim(),
           first_name: newUserFirstName.trim(),
           last_name: newUserLastName.trim(),
           email: newUserEmail.trim(),
@@ -292,6 +298,7 @@ export function AdminDashboard() {
         );
       }
 
+      setNewUserId("");
       setNewUserFirstName("");
       setNewUserLastName("");
       setNewUserEmail("");
@@ -658,6 +665,81 @@ export function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {!loading && metrics && (
+            <div
+              data-testid="school-metrics-breakdown"
+              className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3"
+            >
+              <div className="flex flex-col justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Campus Attendance Status
+                </span>
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    data-testid="kpi-attendance-status"
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      metrics.attendance_status === "Healthy" ||
+                      metrics.attendance_rate >= 90
+                        ? "bg-emerald-50 text-emerald-700"
+                        : metrics.attendance_status === "Moderate" ||
+                            metrics.attendance_rate >= 75
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {metrics.attendance_status ||
+                      (metrics.total_recorded_today > 0
+                        ? metrics.attendance_rate >= 90
+                          ? "Healthy"
+                          : "Moderate"
+                        : "No Records Today")}
+                  </span>
+                  <span
+                    data-testid="kpi-total-recorded-today"
+                    className="text-xs text-slate-500"
+                  >
+                    ({metrics.total_recorded_today} logs recorded today)
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Student-to-Teacher Ratio
+                </span>
+                <p
+                  data-testid="kpi-student-teacher-ratio"
+                  className="mt-2 text-lg font-bold text-slate-900"
+                >
+                  {metrics.student_teacher_ratio ??
+                    (metrics.total_teachers > 0
+                      ? Math.round(
+                          (metrics.total_students / metrics.total_teachers) * 10
+                        ) / 10
+                      : 0)}{" "}
+                  : 1
+                </p>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-semibold uppercase tracking-wider text-slate-500">
+                    Daily Attendance Breakdown
+                  </span>
+                  <span>{metrics.attendance_rate}% Present/Tardy</span>
+                </div>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, metrics.attendance_rate))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Class Scheduling & Teacher Assignment Section */}
@@ -980,6 +1062,22 @@ export function AdminDashboard() {
                     placeholder="e.g. elena.rivera@school.edu"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="new-user-id"
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                  >
+                    School ID (Optional)
+                  </label>
+                  <Input
+                    id="new-user-id"
+                    aria-label="School ID (Optional)"
+                    placeholder="Auto-generated if left blank"
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
                   />
                 </div>
 

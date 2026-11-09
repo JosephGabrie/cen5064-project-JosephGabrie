@@ -34,14 +34,32 @@ var (
 
 // SchoolMetrics holds school-wide KPI metrics for the Admin Dashboard overview.
 type SchoolMetrics struct {
-	TotalStudents      int     `json:"total_students"`
-	TotalTeachers      int     `json:"total_teachers"`
-	ActiveClasses      int     `json:"active_classes"`
-	AttendanceRate     float64 `json:"attendance_rate"`
-	PresentToday       int     `json:"present_today"`
-	AbsentToday        int     `json:"absent_today"`
-	TardyToday         int     `json:"tardy_today"`
-	TotalRecordedToday int     `json:"total_recorded_today"`
+	TotalStudents       int     `json:"total_students"`
+	TotalTeachers       int     `json:"total_teachers"`
+	TotalParents        int     `json:"total_parents"`
+	TotalAdmins         int     `json:"total_admins"`
+	ActiveClasses       int     `json:"active_classes"`
+	StudentTeacherRatio float64 `json:"student_teacher_ratio"`
+	AttendanceRate      float64 `json:"attendance_rate"`
+	AttendanceStatus    string  `json:"attendance_status"`
+	PresentToday        int     `json:"present_today"`
+	AbsentToday         int     `json:"absent_today"`
+	TardyToday          int     `json:"tardy_today"`
+	TotalRecordedToday  int     `json:"total_recorded_today"`
+}
+
+// EvaluateAttendanceStatus classifies the daily school-wide attendance rate into an operational health label.
+func (m *SchoolMetrics) EvaluateAttendanceStatus() string {
+	if m.TotalRecordedToday <= 0 {
+		return "No Records Today"
+	}
+	if m.AttendanceRate >= 90.0 {
+		return "Healthy"
+	}
+	if m.AttendanceRate >= 75.0 {
+		return "Moderate"
+	}
+	return "Needs Attention"
 }
 
 // TeacherOption represents an instructor available for class assignment.
@@ -248,6 +266,10 @@ func CalculateSchoolMetrics(studentCount, teacherCount, classCount int, todaySta
 		ActiveClasses: classCount,
 	}
 
+	if teacherCount > 0 {
+		metrics.StudentTeacherRatio = math.Round((float64(studentCount)/float64(teacherCount))*10) / 10
+	}
+
 	for _, raw := range todayStatuses {
 		switch attendance.NormalizeAttendanceStatus(raw) {
 		case "present":
@@ -267,6 +289,7 @@ func CalculateSchoolMetrics(studentCount, teacherCount, classCount int, todaySta
 		metrics.AttendanceRate = math.Round((float64(attended)/float64(metrics.TotalRecordedToday))*1000) / 10
 	}
 
+	metrics.AttendanceStatus = metrics.EvaluateAttendanceStatus()
 	return metrics
 }
 

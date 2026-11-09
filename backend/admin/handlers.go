@@ -49,7 +49,7 @@ func AdminRoleMiddleware() fiber.Handler {
 	}
 }
 
-// SetupAdminRoutes registers the Admin Dashboard endpoints for school-wide metrics, class scheduling, and user directory management.
+// SetupAdminRoutes registers the Admin Dashboard endpoints for school-wide metrics and class scheduling.
 func SetupAdminRoutes(app *fiber.App, conn *pgxpool.Pool) {
 	group := app.Group("/api/admin", AdminRoleMiddleware())
 
@@ -72,10 +72,12 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 		}
 
 		ctx := context.Background()
-		var studentCount, teacherCount, classCount int
+		var studentCount, teacherCount, parentCount, adminCount, classCount int
 
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'student'`).Scan(&studentCount)
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'teacher'`).Scan(&teacherCount)
+		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'parent'`).Scan(&parentCount)
+		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.users WHERE LOWER("Role") = 'admin'`).Scan(&adminCount)
 		_ = conn.QueryRow(ctx, `SELECT COUNT(*) FROM public.class`).Scan(&classCount)
 
 		statuses := []string{}
@@ -107,6 +109,8 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 		}
 
 		metrics := CalculateSchoolMetrics(studentCount, teacherCount, classCount, statuses)
+		metrics.TotalParents = parentCount
+		metrics.TotalAdmins = adminCount
 		return c.JSON(metrics)
 	}
 }
