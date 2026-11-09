@@ -49,7 +49,7 @@ func AdminRoleMiddleware() fiber.Handler {
 	}
 }
 
-// SetupAdminRoutes registers the Admin Dashboard endpoints for school-wide metrics, class scheduling, and user directory management.
+// SetupAdminRoutes registers the Admin Dashboard endpoints for school-wide metrics and class scheduling.
 func SetupAdminRoutes(app *fiber.App, conn *pgxpool.Pool) {
 	group := app.Group("/api/admin", AdminRoleMiddleware())
 
@@ -60,10 +60,6 @@ func SetupAdminRoutes(app *fiber.App, conn *pgxpool.Pool) {
 	group.Post("/classes", postAdminClass(conn))
 	group.Post("/classes/:classId/enroll", postEnrollStudent(conn))
 	group.Delete("/classes/:classId/enroll/:studentId", deleteEnrollStudent(conn))
-	group.Get("/users", getAdminUsers(conn))
-	group.Post("/users", postAdminUser(conn))
-	group.Post("/parent-links", postParentStudentLink(conn))
-	group.Post("/parents/link", postParentStudentLink(conn))
 }
 
 func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
