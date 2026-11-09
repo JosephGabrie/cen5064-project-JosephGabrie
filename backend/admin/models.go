@@ -194,19 +194,20 @@ func (r *CreateUserRequest) Validate() error {
 }
 
 // GenerateSchoolUserID generates a 6-digit ID for students or an 8-digit ID for staff/parents/admins.
-func GenerateSchoolUserID(role string) string {
+// Returns an error if cryptographic random number generation fails rather than falling back to a hardcoded ID.
+func GenerateSchoolUserID(role string) (string, error) {
 	if strings.EqualFold(strings.TrimSpace(role), "student") {
 		n, err := rand.Int(rand.Reader, big.NewInt(900000))
 		if err != nil {
-			return "100001"
+			return "", fmt.Errorf("failed to generate student ID: %w", err)
 		}
-		return fmt.Sprintf("%06d", n.Int64()+100000)
+		return fmt.Sprintf("%06d", n.Int64()+100000), nil
 	}
 	n, err := rand.Int(rand.Reader, big.NewInt(90000000))
 	if err != nil {
-		return "10000001"
+		return "", fmt.Errorf("failed to generate user ID: %w", err)
 	}
-	return fmt.Sprintf("%08d", n.Int64()+10000000)
+	return fmt.Sprintf("%08d", n.Int64()+10000000), nil
 }
 
 // HashUserPassword hashes a plain-text password using bcrypt.

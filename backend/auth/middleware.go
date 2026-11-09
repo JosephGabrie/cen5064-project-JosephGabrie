@@ -15,9 +15,17 @@ func RequiredLogin() fiber.Handler {
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing token"})
 		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		secret := []byte(os.Getenv("JWT_SECRET"))
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) { return secret, nil })
+		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Server configuration error (JWT_SECRET)"})
+		}
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fiber.ErrUnauthorized
+			}
+			return []byte(secret), nil
+		})
 		if err != nil || !token.Valid {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 		}
@@ -40,9 +48,17 @@ func RequiredRoles(allowedRoles ...string) fiber.Handler {
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing token"})
 		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		secret := []byte(os.Getenv("JWT_SECRET"))
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) { return secret, nil })
+		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Server configuration error (JWT_SECRET)"})
+		}
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fiber.ErrUnauthorized
+			}
+			return []byte(secret), nil
+		})
 		if err != nil || !token.Valid {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 		}
@@ -51,12 +67,12 @@ func RequiredRoles(allowedRoles ...string) fiber.Handler {
 		if !ok {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token claims"})
 		}
-		
-		userRole := claims["role"].(string)
+
+		userRole, _ := claims["role"].(string)
 		roleAllowed := false
 
 		for _, role := range allowedRoles {
-			if role == userRole {
+			if strings.EqualFold(strings.TrimSpace(role), strings.TrimSpace(userRole)) {
 				roleAllowed = true
 				break
 			}
@@ -64,9 +80,9 @@ func RequiredRoles(allowedRoles ...string) fiber.Handler {
 		if !roleAllowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You don't have access to perform this action"})
 		}
-		
+
 		c.Locals("userID", claims["id"])
-		c.Locals("userRole", claims["role"])
+		c.Locals("userRole", userRole)
 		return c.Next()
 	}
 }

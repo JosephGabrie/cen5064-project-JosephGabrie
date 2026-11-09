@@ -196,3 +196,16 @@ Each AI critique block details:
   - **Fixed:** Added the `School ID (Optional)` input field to the Create User modal in `AdminDashboard.tsx` and registered `/api/admin/parents/link` alongside `/api/admin/parent-links`.
   - **Kept:** Retained the unified Admin Dashboard architecture across all three feature branches with 100% passing Go and Vitest suites.
 
+## 9. Security Hardening, Database Iteration Safety & Feature Connectivity
+
+### Context & Implementation
+- **Authenticated Admin Role Enforcement (`backend/admin/handlers.go`, `backend/admin/admin_test.go`, `frontend/components/dashboards/AdminDashboard.tsx`)**:
+  - Removed trust in the client-supplied `X-User-Role` request header inside `AdminRoleMiddleware()`.
+  - `AdminRoleMiddleware()` now validates the caller's role exclusively from an authenticated user context (`c.Locals("userRole")` or verifying the `Authorization: Bearer <token>` HS256 JWT signed with `JWT_SECRET`), returning `401 Unauthorized` for missing/invalid tokens and `403 Forbidden` for authenticated non-admin users.
+  - Updated `setupTestAdminApp(t *testing.T)` and all HTTP tests in `backend/admin/admin_test.go` to mint signed HS256 JWT tokens via `generateTestAuthToken` and verify that spoofed `X-User-Role: admin` headers are rejected.
+- **Explicit Error Handling in CSPRNG ID Generation (`backend/admin/models.go`, `backend/main/scripts/generateUser.go`)**:
+  - Refactored `GenerateSchoolUserID(role string) (string, error)` to return an explicit error instead of hardcoded fallback IDs (`"100001"` / `"10000001"`) if `crypto/rand.Int` fails, preventing account collisions or misassociated records.
+- **Result-Set Iteration Error Checks (`backend/assignments/handlers.go`, `backend/attendance/handlers.go`, `backend/admin/handlers.go`, `backend/api/handler.go`)**:
+  - Added `if err := rows.Err(); err != nil` checks immediately after every `for rows.Next()` loop (including `getClassSubmissions()`, `getUserSubmissions()`, `getClassAssignments()`, `getUserAssignments()`, and all attendance, class, and admin queries) so mid-stream connection drops return `500 Internal Server Error` instead of silently returning truncated `200 OK` slices.
+- **End-to-End Class Portal Connectivity (`frontend/app/class/[classId]/`)**:
+  - Connected `ClassroomAttendanceManager` to `frontend/app/class/[classId]/attendance/page.tsx`, wired live announcements (`GET` & `POST /api/classes/:classId/announcements`) into `frontend/app/class/[classId]/announcements/page.tsx`, and connected the Class Overview dashboard in `frontend/app/class/[classId]/page.tsx`.

@@ -11,38 +11,66 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// AdminRoleMiddleware verifies that when an Authorization token or X-User-Role header is provided,
-// the requester has the "admin" role.
+// AdminRoleMiddleware verifies that the request has an authenticated user context
+// (via a signed Bearer JWT or upstream auth middleware Locals) and that the authenticated
+// user holds the "admin" role. Client-supplied role headers (such as X-User-Role) are never trusted.
 func AdminRoleMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		roleHeader := strings.TrimSpace(c.Get("X-User-Role"))
-		if roleHeader != "" && !strings.EqualFold(roleHeader, "admin") {
+		var authenticatedRole string
+
+		if localRole, ok := c.Locals("userRole").(string); ok && strings.TrimSpace(localRole) != "" {
+			authenticatedRole = strings.TrimSpace(localRole)
+		} else {
+			authHeader := strings.TrimSpace(c.Get("Authorization"))
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Unauthorized: missing or invalid authorization token",
+				})
+			}
+
+			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+			if tokenString == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Unauthorized: empty authorization token",
+				})
+			}
+
+			secret := os.Getenv("JWT_SECRET")
+			if secret == "" {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Server configuration error (JWT_SECRET)",
+				})
+			}
+
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fiber.ErrUnauthorized
+				}
+				return []byte(secret), nil
+			})
+			if err != nil || !token.Valid {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Invalid authorization token",
+				})
+			}
+
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Invalid authorization token claims",
+				})
+			}
+
+			claimRole, _ := claims["role"].(string)
+			authenticatedRole = strings.TrimSpace(claimRole)
+			c.Locals("userID", claims["id"])
+			c.Locals("userRole", authenticatedRole)
+		}
+
+		if !strings.EqualFold(authenticatedRole, "admin") {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Forbidden: admin role required",
 			})
-		}
-
-		authHeader := strings.TrimSpace(c.Get("Authorization"))
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-			secret := os.Getenv("JWT_SECRET")
-			if tokenString != "" && secret != "" {
-				token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-					return []byte(secret), nil
-				})
-				if err != nil || !token.Valid {
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error": "Invalid authorization token",
-					})
-				}
-				if claims, ok := token.Claims.(jwt.MapClaims); ok {
-					if claimRole, ok := claims["role"].(string); ok && !strings.EqualFold(claimRole, "admin") {
-						return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-							"error": "Forbidden: admin role required",
-						})
-					}
-				}
-			}
 		}
 
 		return c.Next()
@@ -90,6 +118,10 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 					statuses = append(statuses, st)
 				}
 			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error reading attendance metrics: " + err.Error()})
+			}
 			rows.Close()
 		}
 
@@ -104,6 +136,10 @@ func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
 					if err := fallbackRows.Scan(&st); err == nil {
 						statuses = append(statuses, st)
 					}
+				}
+				if err := fallbackRows.Err(); err != nil {
+					fallbackRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error reading fallback attendance metrics: " + err.Error()})
 				}
 				fallbackRows.Close()
 			}
@@ -144,6 +180,9 @@ func getTeachers(conn *pgxpool.Pool) fiber.Handler {
 				teachers = append(teachers, t)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating teacher rows: " + err.Error()})
+		}
 		return c.JSON(teachers)
 	}
 }
@@ -175,6 +214,9 @@ func getStudents(conn *pgxpool.Pool) fiber.Handler {
 			if err := rows.Scan(&st.StudentID, &st.InternalID, &st.FirstName, &st.LastName, &st.Email); err == nil {
 				students = append(students, st)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating student rows: " + err.Error()})
 		}
 		return c.JSON(students)
 	}
@@ -211,6 +253,9 @@ func getAdminClasses(conn *pgxpool.Pool) fiber.Handler {
 			cls.Students = []attendance.EnrolledStudent{}
 			classes = append(classes, cls)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating class rows: " + err.Error()})
+		}
 		rows.Close()
 
 		for i := range classes {
@@ -228,6 +273,10 @@ func getAdminClasses(conn *pgxpool.Pool) fiber.Handler {
 					if err := stRows.Scan(&st.StudentID, &st.InternalID, &st.FirstName, &st.LastName, &st.Email); err == nil {
 						classes[i].Students = append(classes[i].Students, st)
 					}
+				}
+				if err := stRows.Err(); err != nil {
+					stRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating class roster rows: " + err.Error()})
 				}
 				stRows.Close()
 			}
@@ -336,6 +385,10 @@ func postEnrollStudent(conn *pgxpool.Pool) fiber.Handler {
 				if err := rows.Scan(&uid, &sid); err == nil {
 					existingIDs = append(existingIDs, uid, sid)
 				}
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error reading enrolled students: " + err.Error()})
 			}
 			rows.Close()
 		}
@@ -457,6 +510,9 @@ func getAdminUsers(conn *pgxpool.Pool) fiber.Handler {
 				users = append(users, u)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating user directory rows: " + err.Error()})
+		}
 
 		for i := range users {
 			if children, ok := parentChildrenMap[users[i].ID]; ok {
@@ -495,7 +551,11 @@ func postAdminUser(conn *pgxpool.Pool) fiber.Handler {
 		userID := strings.TrimSpace(req.ID)
 		normalizedRole := strings.ToLower(strings.TrimSpace(req.Role))
 		if userID == "" {
-			userID = GenerateSchoolUserID(normalizedRole)
+			generatedID, err := GenerateSchoolUserID(normalizedRole)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate user ID"})
+			}
+			userID = generatedID
 		}
 
 		var existingCount int
@@ -597,6 +657,10 @@ func postParentStudentLink(conn *pgxpool.Pool) fiber.Handler {
 				if err := linkRows.Scan(&sID); err == nil {
 					existingLinks = append(existingLinks, sID)
 				}
+			}
+			if err := linkRows.Err(); err != nil {
+				linkRows.Close()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error reading linked students: " + err.Error()})
 			}
 			linkRows.Close()
 		}

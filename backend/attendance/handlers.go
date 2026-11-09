@@ -61,6 +61,9 @@ func getClassStudents(conn *pgxpool.Pool) fiber.Handler {
 			}
 			students = append(students, st)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating student rows: " + err.Error()})
+		}
 		return c.JSON(students)
 	}
 }
@@ -95,6 +98,9 @@ func getClassSeating(conn *pgxpool.Pool) fiber.Handler {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to scan seating row"})
 			}
 			seats = append(seats, seat)
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating seating rows: " + err.Error()})
 		}
 		return c.JSON(seats)
 	}
@@ -259,6 +265,9 @@ func getClassAttendance(conn *pgxpool.Pool) fiber.Handler {
 			}
 			records = append(records, r)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating attendance rows: " + err.Error()})
+		}
 		return c.JSON(records)
 	}
 }
@@ -294,6 +303,9 @@ func getClassAttendanceLogs(conn *pgxpool.Pool) fiber.Handler {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse attendance log"})
 			}
 			records = append(records, r)
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating attendance log rows: " + err.Error()})
 		}
 
 		return c.JSON(GroupAttendanceByDate(records))
@@ -341,6 +353,9 @@ func getUserAttendance(conn *pgxpool.Pool) fiber.Handler {
 			}
 			records = append(records, r)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating user attendance rows: " + err.Error()})
+		}
 
 		return c.JSON(UserAttendanceResponse{
 			Summary: CalculateAttendanceSummary(records),
@@ -377,6 +392,9 @@ func getClassAnnouncements(conn *pgxpool.Pool) fiber.Handler {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to scan announcement"})
 			}
 			announcements = append(announcements, a)
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating announcement rows: " + err.Error()})
 		}
 		return c.JSON(announcements)
 	}
@@ -454,6 +472,9 @@ func getUserAnnouncements(conn *pgxpool.Pool) fiber.Handler {
 			}
 			announcements = append(announcements, a)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating user announcement rows: " + err.Error()})
+		}
 		return c.JSON(announcements)
 	}
 }
@@ -491,6 +512,9 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 			child.Announcements = []Announcement{}
 			children = append(children, child)
 		}
+		if err := childRows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating linked children rows: " + err.Error()})
+		}
 		childRows.Close()
 
 		// Populate classes, grades, attendance, and announcements for each linked child
@@ -512,6 +536,10 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 					if err := classRows.Scan(&ci.ID, &ci.Name, &ci.Subject, &ci.Teacher, &ci.RoomNumber); err == nil {
 						child.Classes = append(child.Classes, ci)
 					}
+				}
+				if err := classRows.Err(); err != nil {
+					classRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating child classes rows: " + err.Error()})
 				}
 				classRows.Close()
 			}
@@ -536,6 +564,10 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 					if err := assignRows.Scan(&ra.a.ID, &ra.a.ClassID, &ra.className, &ra.a.Questions, &ra.a.File, &ra.a.DueDate); err == nil {
 						childAssignments = append(childAssignments, ra)
 					}
+				}
+				if err := assignRows.Err(); err != nil {
+					assignRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating child assignments rows: " + err.Error()})
 				}
 				assignRows.Close()
 
@@ -591,6 +623,10 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 						child.AttendanceRecords = append(child.AttendanceRecords, r)
 					}
 				}
+				if err := attRows.Err(); err != nil {
+					attRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating child attendance rows: " + err.Error()})
+				}
 				attRows.Close()
 			}
 			child.AttendanceSummary = CalculateAttendanceSummary(child.AttendanceRecords)
@@ -611,6 +647,10 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 					if err := annRows.Scan(&ann.ID, &ann.ClassID, &ann.ClassName, &ann.Title, &ann.Content, &ann.Date); err == nil {
 						child.Announcements = append(child.Announcements, ann)
 					}
+				}
+				if err := annRows.Err(); err != nil {
+					annRows.Close()
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating child announcements rows: " + err.Error()})
 				}
 				annRows.Close()
 			}
