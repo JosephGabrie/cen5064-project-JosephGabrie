@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { expect, test, vi } from 'vitest';
+import { expect, test } from 'vitest';
 import CreateAssignmentForm from './CreateAssignmentForm';
 
 test('renders form fields correctly', () => {

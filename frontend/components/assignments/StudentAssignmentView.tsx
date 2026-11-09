@@ -157,7 +157,10 @@ export default function StudentAssignmentView({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  const questions = assignment.questions || [];
+  const questions = useMemo(
+    () => assignment.questions || [],
+    [assignment.questions],
+  );
   const isFileAssignment = Boolean(assignment.file && questions.length === 0);
   const totalPossiblePoints = useMemo(
     () => questions.reduce((acc, q) => acc + (q.points || 0), 0),
