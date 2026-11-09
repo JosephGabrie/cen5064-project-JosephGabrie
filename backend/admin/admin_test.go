@@ -172,3 +172,156 @@ func TestPostEnrollStudent_Validation(t *testing.T) {
 		t.Errorf("expected 400 Bad Request for empty student_id, got %d", resp.StatusCode)
 	}
 }
+
+func TestAdminUserRecord_MatchesFilter_And_FilterUsers(t *testing.T) {
+	users := []AdminUserRecord{
+		{ID: "438813", FirstName: "Sammy", LastName: "Student", Email: "sammy@school.edu", Role: "student"},
+		{ID: "31229834", FirstName: "Timmy", LastName: "Teacher", Email: "timmy@school.edu", Role: "teacher"},
+		{ID: "76633852", FirstName: "Patty", LastName: "Parent", Email: "patty@family.org", Role: "parent"},
+		{ID: "31864322", FirstName: "Alice", LastName: "Admin", Email: "alice@school.edu", Role: "admin"},
+	}
+
+	// Filter by role only
+	studentsOnly := FilterUsers(users, "student", "")
+	if len(studentsOnly) != 1 || studentsOnly[0].ID != "438813" {
+		t.Errorf("expected 1 student, got %d", len(studentsOnly))
+	}
+
+	// Filter by search query (case-insensitive name/email/ID)
+	searchByEmail := FilterUsers(users, "all", "PATTY@FAMILY")
+	if len(searchByEmail) != 1 || searchByEmail[0].ID != "76633852" {
+		t.Errorf("expected Patty Parent by email search, got %v", searchByEmail)
+	}
+
+	searchByID := FilterUsers(users, "", "3122")
+	if len(searchByID) != 1 || searchByID[0].FirstName != "Timmy" {
+		t.Errorf("expected Timmy Teacher by ID search, got %v", searchByID)
+	}
+
+	// Combined role + search query mismatch
+	mismatch := FilterUsers(users, "teacher", "Sammy")
+	if len(mismatch) != 0 {
+		t.Errorf("expected 0 results when filtering teacher with 'Sammy', got %d", len(mismatch))
+	}
+}
+
+func TestCreateUserRequest_Validate(t *testing.T) {
+	validReq := CreateUserRequest{
+		FirstName: "Elena",
+		LastName:  "Rivera",
+		Email:     "elena.rivera@school.edu",
+		Role:      "teacher",
+		Password:  "Secret123!",
+	}
+	if err := validReq.Validate(); err != nil {
+		t.Errorf("expected valid CreateUserRequest to pass, got %v", err)
+	}
+
+	missingName := validReq
+	missingName.FirstName = "  "
+	if err := missingName.Validate(); err != ErrEmptyUserName {
+		t.Errorf("expected ErrEmptyUserName, got %v", err)
+	}
+
+	missingEmail := validReq
+	missingEmail.Email = ""
+	if err := missingEmail.Validate(); err != ErrEmptyUserEmail {
+		t.Errorf("expected ErrEmptyUserEmail, got %v", err)
+	}
+
+	badEmail := validReq
+	badEmail.Email = "not-an-email"
+	if err := badEmail.Validate(); err == nil {
+		t.Errorf("expected invalid email format error, got nil")
+	}
+
+	badRole := validReq
+	badRole.Role = "principal"
+	if err := badRole.Validate(); err == nil {
+		t.Errorf("expected invalid role error, got nil")
+	}
+
+	weakPass := validReq
+	weakPass.Password = "123"
+	if err := weakPass.Validate(); err != ErrWeakPassword {
+		t.Errorf("expected ErrWeakPassword, got %v", err)
+	}
+}
+
+func TestValidateParentStudentLink(t *testing.T) {
+	if err := ValidateParentStudentLink("76633852", "parent", "438813", "student", []string{"999999"}); err != nil {
+		t.Errorf("expected valid parent-student link to succeed, got %v", err)
+	}
+
+	if err := ValidateParentStudentLink("", "parent", "438813", "student", nil); err != ErrMissingParentOrStudentID {
+		t.Errorf("expected ErrMissingParentOrStudentID, got %v", err)
+	}
+
+	if err := ValidateParentStudentLink("31229834", "teacher", "438813", "student", nil); err != ErrInvalidParentRole {
+		t.Errorf("expected ErrInvalidParentRole when parent user is a teacher, got %v", err)
+	}
+
+	if err := ValidateParentStudentLink("76633852", "parent", "31229834", "teacher", nil); err != ErrInvalidStudentRoleForLink {
+		t.Errorf("expected ErrInvalidStudentRoleForLink when child user is a teacher, got %v", err)
+	}
+
+	if err := ValidateParentStudentLink("76633852", "parent", "438813", "student", []string{"438813"}); err != ErrDuplicateParentStudentLink {
+		t.Errorf("expected ErrDuplicateParentStudentLink, got %v", err)
+	}
+}
+
+func TestHashUserPassword(t *testing.T) {
+	if _, err := HashUserPassword("short"); err != ErrWeakPassword {
+		t.Errorf("expected ErrWeakPassword for short password, got %v", err)
+	}
+
+	hash, err := HashUserPassword("StrongPass123")
+	if err != nil {
+		t.Fatalf("unexpected error hashing password: %v", err)
+	}
+	if hash == "" || hash == "StrongPass123" {
+		t.Errorf("expected bcrypt hash, got %q", hash)
+	}
+}
+
+func TestPostAdminUser_Validation(t *testing.T) {
+	app := setupTestAdminApp()
+
+	invalidPayload := CreateUserRequest{
+		FirstName: "Test",
+		LastName:  "User",
+		Email:     "invalid-email",
+		Role:      "student",
+		Password:  "password123",
+	}
+	body, _ := json.Marshal(invalidPayload)
+
+	req := httptest.NewRequest("POST", "/api/admin/users", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-Role", "admin")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for invalid user creation payload, got %d", resp.StatusCode)
+	}
+}
+
+func TestPostParentStudentLink_Validation(t *testing.T) {
+	app := setupTestAdminApp()
+
+	body := []byte(`{"parent_id": "76633852", "student_id": ""}`)
+	req := httptest.NewRequest("POST", "/api/admin/parent-links", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-Role", "admin")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for missing student_id in parent link, got %d", resp.StatusCode)
+	}
+}

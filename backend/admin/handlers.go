@@ -60,6 +60,9 @@ func SetupAdminRoutes(app *fiber.App, conn *pgxpool.Pool) {
 	group.Post("/classes", postAdminClass(conn))
 	group.Post("/classes/:classId/enroll", postEnrollStudent(conn))
 	group.Delete("/classes/:classId/enroll/:studentId", deleteEnrollStudent(conn))
+	group.Get("/users", getAdminUsers(conn))
+	group.Post("/users", postAdminUser(conn))
+	group.Post("/parent-links", postParentStudentLink(conn))
 }
 
 func getSchoolMetrics(conn *pgxpool.Pool) fiber.Handler {
