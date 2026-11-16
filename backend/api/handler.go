@@ -76,6 +76,11 @@ func GetUserClassess(app *fiber.App, conn *pgxpool.Pool) {
 			}
 			classes = append(classes, class)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error iterating database rows: " + err.Error(),
+			})
+		}
 		return c.JSON(classes)
 
 	})

@@ -1,3 +1,36 @@
+# --- Go Compiled Binaries & Build Artifacts ---
+backend/main/main
+backend/main/server
+backend/server
+backend/main/scripts/generateUser
+backend/main/scripts/seed_db
+main
+server
+print_users
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.bin
+go.work
+
+# --- Local Secrets, Passwords & Credentials (never commit credentials) ---
+.env
+.env.*
+!.env.example
+*.local
+*.local.bak
+backend/users.json
+users.json
+*passwords*
+*secrets*
+*credentials*
+*.pem
+*.key
+
 # --- Java ---
 target/
 build/
@@ -23,11 +56,9 @@ venv/
 .DS_Store
 Thumbs.db
 
-# --- Local secrets/config (never commit credentials) ---
-.env
-*.local
-# dependencies
+# --- Node / Next.js Dependencies & Build ---
 /node_modules
+**/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -35,27 +66,18 @@ Thumbs.db
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
-# testing
 /coverage
-
-# next.js
 /.next/
+**/.next/
 /out/
-
-# production
 /build
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# --- Debug Logs ---
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# typescript
+# --- TypeScript ---
 *.tsbuildinfo
 next-env.d.ts

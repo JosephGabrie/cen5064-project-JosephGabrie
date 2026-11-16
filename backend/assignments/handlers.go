@@ -266,6 +266,9 @@ func getClassSubmissions(conn *pgxpool.Pool) fiber.Handler {
 			s.Feedback = &fb
 			submissions = append(submissions, s)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating database rows: " + err.Error()})
+		}
 		return c.JSON(submissions)
 	}
 }
@@ -307,6 +310,9 @@ func getUserSubmissions(conn *pgxpool.Pool) fiber.Handler {
 			fb := EvaluateSubmissionFeedback(a, s)
 			s.Feedback = &fb
 			submissions = append(submissions, s)
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating database rows: " + err.Error()})
 		}
 		return c.JSON(submissions)
 	}
@@ -353,6 +359,11 @@ func getUserAssignments(conn *pgxpool.Pool) fiber.Handler {
 			}
 			assignments = append(assignments, a)
 		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Error iterating database rows: " + err.Error(),
+			})
+		}
 		return c.JSON(assignments)
 	}
 }
@@ -378,6 +389,9 @@ func getClassAssignments(conn *pgxpool.Pool) fiber.Handler {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse database data"})
 			}
 			assignments = append(assignments, a)
+		}
+		if err := rows.Err(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error iterating database rows: " + err.Error()})
 		}
 		return c.JSON(assignments)
 	}

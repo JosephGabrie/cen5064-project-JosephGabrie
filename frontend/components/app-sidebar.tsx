@@ -49,11 +49,8 @@ export function AppSidebar() {
     { title: "Assignments", url: `/class/${classId}/assignments`, icon: ClipboardList },
     { title: "Quizzes", url: `/class/${classId}/quizzes`, icon: HelpCircle },
     { title: "Grades", url: `/class/${classId}/grades`, icon: GraduationCap },
+    { title: "Attendance", url: `/class/${classId}/attendance`, icon: CheckCircle },
   ] : [];
-
-  if (isClassRoute && user?.role === "teacher") {
-    classNavItems.push({ title: "Attendance", url: `/class/${classId}/attendance`, icon: CheckCircle });
-  }
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "User";
   const displaySubtext = user?.email || (user?.role ? `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} (ID: ${user?.id})` : user?.id || "");

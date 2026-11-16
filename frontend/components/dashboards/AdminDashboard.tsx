@@ -76,7 +76,6 @@ export interface AdminUserDirectoryRecord {
 function buildAdminHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-User-Role": "admin",
   };
   if (
     typeof window !== "undefined" &&

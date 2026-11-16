@@ -5,14 +5,34 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func setupTestAdminApp() *fiber.App {
+const testJWTSecret = "test-admin-jwt-secret-key"
+
+func setupTestAdminApp(t *testing.T) *fiber.App {
+	t.Helper()
+	t.Setenv("JWT_SECRET", testJWTSecret)
 	app := fiber.New()
 	SetupAdminRoutes(app, nil)
 	return app
+}
+
+func generateTestAuthToken(t *testing.T, userID, role string) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":   userID,
+		"role": role,
+		"exp":  time.Now().Add(time.Hour).Unix(),
+	})
+	signed, err := token.SignedString([]byte(testJWTSecret))
+	if err != nil {
+		t.Fatalf("failed to sign test JWT: %v", err)
+	}
+	return signed
 }
 
 func TestCalculateSchoolMetrics(t *testing.T) {
@@ -117,22 +137,37 @@ func TestValidateStudentEnrollment(t *testing.T) {
 }
 
 func TestAdminRoleMiddleware_RejectsNonAdmin(t *testing.T) {
-	app := setupTestAdminApp()
+	app := setupTestAdminApp(t)
 
+	// 1. Authenticated student token must be rejected with 403 Forbidden even if X-User-Role header is spoofed as admin
+	studentToken := generateTestAuthToken(t, "438813", "student")
 	req := httptest.NewRequest("GET", "/api/admin/metrics", nil)
-	req.Header.Set("X-User-Role", "student")
+	req.Header.Set("Authorization", "Bearer "+studentToken)
+	req.Header.Set("X-User-Role", "admin")
 
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
 	if resp.StatusCode != fiber.StatusForbidden {
-		t.Errorf("expected 403 Forbidden for student role, got %d", resp.StatusCode)
+		t.Errorf("expected 403 Forbidden for authenticated student role, got %d", resp.StatusCode)
+	}
+
+	// 2. Unauthenticated request with spoofed X-User-Role header must be rejected with 401 Unauthorized
+	unauthReq := httptest.NewRequest("GET", "/api/admin/metrics", nil)
+	unauthReq.Header.Set("X-User-Role", "admin")
+	unauthResp, err := app.Test(unauthReq)
+	if err != nil {
+		t.Fatalf("unauthenticated request failed: %v", err)
+	}
+	if unauthResp.StatusCode != fiber.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized when Authorization token is missing, got %d", unauthResp.StatusCode)
 	}
 }
 
 func TestPostAdminClass_Validation(t *testing.T) {
-	app := setupTestAdminApp()
+	app := setupTestAdminApp(t)
+	adminToken := generateTestAuthToken(t, "31864322", "admin")
 
 	// Missing subject and teacher_id should return 400 Bad Request
 	payload := AdminClassSection{
@@ -145,7 +180,7 @@ func TestPostAdminClass_Validation(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/admin/classes", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "admin")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -157,12 +192,13 @@ func TestPostAdminClass_Validation(t *testing.T) {
 }
 
 func TestPostEnrollStudent_Validation(t *testing.T) {
-	app := setupTestAdminApp()
+	app := setupTestAdminApp(t)
+	adminToken := generateTestAuthToken(t, "31864322", "admin")
 
 	body := []byte(`{"student_id": ""}`)
 	req := httptest.NewRequest("POST", "/api/admin/classes/1/enroll", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "admin")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -284,8 +320,27 @@ func TestHashUserPassword(t *testing.T) {
 	}
 }
 
+func TestGenerateSchoolUserID(t *testing.T) {
+	studentID, err := GenerateSchoolUserID("student")
+	if err != nil {
+		t.Fatalf("unexpected error generating student ID: %v", err)
+	}
+	if len(studentID) != 6 {
+		t.Errorf("expected 6-digit student ID, got %q", studentID)
+	}
+
+	teacherID, err := GenerateSchoolUserID("teacher")
+	if err != nil {
+		t.Fatalf("unexpected error generating teacher ID: %v", err)
+	}
+	if len(teacherID) != 8 {
+		t.Errorf("expected 8-digit teacher ID, got %q", teacherID)
+	}
+}
+
 func TestPostAdminUser_Validation(t *testing.T) {
-	app := setupTestAdminApp()
+	app := setupTestAdminApp(t)
+	adminToken := generateTestAuthToken(t, "31864322", "admin")
 
 	invalidPayload := CreateUserRequest{
 		FirstName: "Test",
@@ -298,7 +353,7 @@ func TestPostAdminUser_Validation(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/admin/users", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "admin")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -310,12 +365,13 @@ func TestPostAdminUser_Validation(t *testing.T) {
 }
 
 func TestPostParentStudentLink_Validation(t *testing.T) {
-	app := setupTestAdminApp()
+	app := setupTestAdminApp(t)
+	adminToken := generateTestAuthToken(t, "31864322", "admin")
 
 	body := []byte(`{"parent_id": "76633852", "student_id": ""}`)
 	req := httptest.NewRequest("POST", "/api/admin/parent-links", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "admin")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 
 	resp, err := app.Test(req)
 	if err != nil {
@@ -325,3 +381,4 @@ func TestPostParentStudentLink_Validation(t *testing.T) {
 		t.Errorf("expected 400 Bad Request for missing student_id in parent link, got %d", resp.StatusCode)
 	}
 }
+
