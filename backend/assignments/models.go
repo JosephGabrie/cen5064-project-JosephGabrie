@@ -20,6 +20,7 @@ type Question struct {
 type Assignment struct {
 	ID        string     `json:"id"`
 	ClassID   string     `json:"class_id"`
+	Title     string     `json:"title"`
 	Questions []Question `json:"questions,omitempty"`
 	File      string     `json:"file,omitempty"` // URL to supabase bucket
 	DueDate   time.Time  `json:"due_date"`
@@ -57,14 +58,16 @@ type SubmissionFeedback struct {
 
 // Submission represents a student's submission for an assignment.
 type Submission struct {
-	ID            string              `json:"id"`
-	ClassID       string              `json:"class_id"`
-	StudentID     string              `json:"student_id"`
-	AssignmentID  string              `json:"assignment_id"`
-	Grade         string              `json:"grade"`
-	StudentAnswer []StudentAnswer     `json:"student_answer"`
-	DateSubmitted time.Time           `json:"date_submitted"`
-	Feedback      *SubmissionFeedback `json:"feedback,omitempty"`
+	ID              string              `json:"id"`
+	ClassID         string              `json:"class_id"`
+	StudentID       string              `json:"student_id"`
+	StudentName     string              `json:"student_name,omitempty"`
+	AssignmentID    string              `json:"assignment_id"`
+	Grade           string              `json:"grade"`
+	TeacherFeedback string              `json:"teacher_feedback,omitempty"`
+	StudentAnswer   []StudentAnswer     `json:"student_answer"`
+	DateSubmitted   time.Time           `json:"date_submitted"`
+	Feedback        *SubmissionFeedback `json:"feedback,omitempty"`
 }
 
 // Validate checks domain constraints for an Assignment.

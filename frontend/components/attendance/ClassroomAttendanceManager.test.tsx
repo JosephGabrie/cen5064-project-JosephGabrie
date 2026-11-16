@@ -157,4 +157,64 @@ describe('ClassroomAttendanceManager', () => {
       ).toBeInTheDocument();
     });
   });
+
+  it('restricts students from viewing attendance and seating records', () => {
+    render(
+      <ClassroomAttendanceManager
+        classId="1"
+        userRole="student"
+        userId="438813"
+      />
+    );
+
+    expect(
+      screen.getByTestId('student-attendance-restricted')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Attendance Access Restricted/i)
+    ).toBeInTheDocument();
+  });
+
+  it('allows dragging a student from the roster pool onto a classroom desk', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/students')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockStudents,
+        } as Response);
+      }
+      if (url.includes('/seating')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [],
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+    });
+
+    render(
+      <ClassroomAttendanceManager
+        classId="1"
+        userRole="teacher"
+        userId="31229834"
+      />
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('draggable-student-438813')
+      ).toBeInTheDocument();
+    });
+
+    const studentChip = screen.getByTestId('draggable-student-438813');
+    const targetDesk = screen.getByTestId('desk-0-2');
+
+    fireEvent.dragStart(studentChip);
+    fireEvent.dragOver(targetDesk);
+    fireEvent.drop(targetDesk);
+
+    await waitFor(() => {
+      expect(targetDesk).toHaveTextContent('Sammy Student');
+    });
+  });
 });

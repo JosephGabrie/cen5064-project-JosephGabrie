@@ -107,16 +107,18 @@ type Announcement struct {
 
 // ChildGradeItem represents an assignment and its submission status/grade for the parent portal.
 type ChildGradeItem struct {
-	AssignmentID  string                          `json:"assignment_id"`
-	ClassID       string                          `json:"class_id"`
-	ClassName     string                          `json:"class_name"`
-	Type          string                          `json:"type"`
-	DueDate       string                          `json:"due_date"`
-	Submitted     bool                            `json:"submitted"`
-	SubmissionID  string                          `json:"submission_id,omitempty"`
-	Grade         string                          `json:"grade"`
-	DateSubmitted string                          `json:"date_submitted,omitempty"`
-	Feedback      *assignments.SubmissionFeedback `json:"feedback,omitempty"`
+	AssignmentID    string                          `json:"assignment_id"`
+	Title           string                          `json:"title,omitempty"`
+	ClassID         string                          `json:"class_id"`
+	ClassName       string                          `json:"class_name"`
+	Type            string                          `json:"type"`
+	DueDate         string                          `json:"due_date"`
+	Submitted       bool                            `json:"submitted"`
+	SubmissionID    string                          `json:"submission_id,omitempty"`
+	Grade           string                          `json:"grade"`
+	TeacherFeedback string                          `json:"teacher_feedback,omitempty"`
+	DateSubmitted   string                          `json:"date_submitted,omitempty"`
+	Feedback        *assignments.SubmissionFeedback `json:"feedback,omitempty"`
 }
 
 // ChildClassInfo represents a class in which a parent's child is enrolled.

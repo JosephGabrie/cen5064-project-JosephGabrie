@@ -32,9 +32,17 @@ export default function RootLayout({
             <ThemeProvider>
               <SidebarProvider>
                 <AppSidebar />
-                <main className="w-full">
-                  <SidebarTrigger />
-                  <div className="min-h-screen w-full bg-white bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:16px_16px] text-slate-900 dark:text-slate-100">
+                <main className="flex min-h-screen w-full flex-col bg-[#f8fbfa] text-[#071e22] dark:bg-[#071e22] dark:text-[#f8fbfa]">
+                  <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[#679289]/30 bg-white/90 px-4 backdrop-blur-xs sm:px-6 dark:border-[#679289]/20 dark:bg-[#071e22]/90">
+                    <SidebarTrigger
+                      aria-label="Toggle navigation sidebar"
+                      className="text-[#071e22] hover:bg-[#679289]/15 focus-visible:ring-2 focus-visible:ring-[#1d7874] dark:text-[#f8fbfa]"
+                    />
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#1d7874] dark:text-[#f4c095]">
+                      <span>MTV School Portal</span>
+                    </div>
+                  </header>
+                  <div className="flex-1 w-full bg-[#f8fbfa] text-[#071e22] dark:bg-[#071e22] dark:text-[#f8fbfa]">
                     {children}
                   </div>
                 </main>

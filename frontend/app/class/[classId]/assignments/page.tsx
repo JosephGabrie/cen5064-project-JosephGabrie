@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useEffect, useState, useCallback } from "react";
+import React, { use, useEffect, useState, useCallback, useMemo } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
 import CreateAssignmentForm from "@/components/assignments/CreateAssignmentForm";
@@ -10,6 +10,14 @@ import StudentAssignmentView, {
 } from "@/components/assignments/StudentAssignmentView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+interface ClassRosterStudent {
+  student_id: string | number;
+  internal_id?: string | number;
+  user_id?: string | number;
+  first_name: string;
+  last_name: string;
+}
 
 export default function AssignmentsPage({
   params,
@@ -24,11 +32,17 @@ export default function AssignmentsPage({
   >("list");
   const [assignments, setAssignments] = useState<AssignmentData[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
+  const [rosterStudents, setRosterStudents] = useState<ClassRosterStudent[]>(
+    []
+  );
   const [selectedAssignment, setSelectedAssignment] =
     useState<AssignmentData | null>(null);
   const [editingAssignment, setEditingAssignment] =
     useState<AssignmentData | null>(null);
   const [gradeEdits, setGradeEdits] = useState<Record<string, string>>({});
+  const [feedbackEdits, setFeedbackEdits] = useState<Record<string, string>>(
+    {}
+  );
   const [savingGradeId, setSavingGradeId] = useState<string | null>(null);
 
   const userId = user?.id;
@@ -44,9 +58,20 @@ export default function AssignmentsPage({
       })
       .catch((err) => console.error("Error fetching assignments:", err));
 
+    fetch(`http://localhost:6769/api/classes/${classId}/students`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRosterStudents(data);
+        }
+      })
+      .catch(() => {});
+
     if (userId) {
       const query =
-        userRole === "student" ? `?student_id=${encodeURIComponent(userId)}` : "";
+        userRole === "student"
+          ? `?student_id=${encodeURIComponent(userId)}`
+          : "";
       fetch(`http://localhost:6769/api/classes/${classId}/submissions${query}`)
         .then((res) => res.json())
         .then((data) => {
@@ -61,6 +86,31 @@ export default function AssignmentsPage({
   useEffect(() => {
     fetchAssignmentsAndSubmissions();
   }, [fetchAssignmentsAndSubmissions]);
+
+  const studentNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    rosterStudents.forEach((st) => {
+      const fullName = `${st.first_name} ${st.last_name}`.trim();
+      if (fullName) {
+        if (st.student_id !== undefined) map[String(st.student_id)] = fullName;
+        if (st.internal_id !== undefined)
+          map[String(st.internal_id)] = fullName;
+        if (st.user_id !== undefined) map[String(st.user_id)] = fullName;
+      }
+    });
+    return map;
+  }, [rosterStudents]);
+
+  const getStudentDisplayName = (sub: SubmissionData): string => {
+    if (
+      sub.student_name &&
+      sub.student_name.trim() !== "" &&
+      sub.student_name.trim() !== String(sub.student_id)
+    ) {
+      return sub.student_name.trim();
+    }
+    return studentNameMap[String(sub.student_id)] || `Student (${sub.student_id})`;
+  };
 
   const now = new Date();
   const activeAssignments = assignments.filter(
@@ -82,6 +132,9 @@ export default function AssignmentsPage({
     submissions.filter((s) => s.assignment_id === assignmentId);
 
   const getAssignmentSummaryTitle = (a: AssignmentData, index: number) => {
+    if (a.title && a.title.trim() !== "") {
+      return a.title.trim();
+    }
     if (a.questions && a.questions.length > 0 && a.questions[0].question) {
       const qText = a.questions[0].question;
       return qText.length > 60 ? `${qText.slice(0, 60)}...` : qText;
@@ -100,10 +153,13 @@ export default function AssignmentsPage({
   const handleViewSubmissions = (assignment: AssignmentData) => {
     setSelectedAssignment(assignment);
     const subMap: Record<string, string> = {};
+    const fbMap: Record<string, string> = {};
     getAssignmentSubmissions(assignment.id).forEach((s) => {
       subMap[s.id] = s.grade;
+      fbMap[s.id] = s.teacher_feedback || "";
     });
     setGradeEdits(subMap);
+    setFeedbackEdits(fbMap);
     setViewMode("submissions");
   };
 
@@ -127,6 +183,7 @@ export default function AssignmentsPage({
 
   const handleSaveManualGrade = async (submissionId: string) => {
     const newGrade = gradeEdits[submissionId];
+    const newFeedback = feedbackEdits[submissionId] ?? "";
     if (newGrade === undefined) return;
     setSavingGradeId(submissionId);
     try {
@@ -135,7 +192,10 @@ export default function AssignmentsPage({
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ grade: newGrade }),
+          body: JSON.stringify({
+            grade: newGrade,
+            teacher_feedback: newFeedback,
+          }),
         }
       );
       if (res.ok) {
@@ -163,15 +223,15 @@ export default function AssignmentsPage({
     return (
       <div
         key={a.id}
-        className={`p-5 border rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-shadow ${
+        className={`p-5 border rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
           isPastDue
-            ? "border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-800"
-            : "border-slate-200 bg-white hover:shadow-md dark:bg-slate-800 dark:border-slate-700"
+            ? "border-[#679289]/30 bg-[#f8fbfa] dark:bg-[#071e22] dark:border-[#679289]/25"
+            : "border-[#679289]/35 bg-white hover:border-[#1d7874] hover:shadow-md dark:bg-[#0d2b30] dark:border-[#679289]/30"
         }`}
       >
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-md dark:bg-blue-950 dark:text-blue-300">
+            <span className="text-xs font-bold text-[#071e22] bg-[#f4c095]/45 px-2.5 py-0.5 rounded-md">
               {a.file
                 ? "File / Resource"
                 : `${a.questions?.length || 0} Question${
@@ -179,12 +239,12 @@ export default function AssignmentsPage({
                   }`}
             </span>
             {totalPoints > 0 && (
-              <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md dark:bg-slate-700 dark:text-slate-300">
+              <span className="text-xs font-semibold text-[#071e22] bg-[#679289]/20 px-2.5 py-0.5 rounded-md dark:text-white">
                 {totalPoints} pts
               </span>
             )}
             {studentSub && (
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md dark:bg-emerald-950 dark:text-emerald-300">
+              <span className="text-xs font-bold text-white bg-[#1d7874] px-2.5 py-0.5 rounded-md">
                 Submitted • Grade: {studentSub.grade}
                 {studentSub.feedback
                   ? ` (${studentSub.feedback.percentage}%)`
@@ -192,14 +252,14 @@ export default function AssignmentsPage({
               </span>
             )}
           </div>
-          <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-100">
+          <h3 className="font-bold text-lg text-[#071e22] dark:text-white">
             {getAssignmentSummaryTitle(a, index)}
           </h3>
           <p
             className={`text-sm ${
               isPastDue
-                ? "text-red-500 font-medium"
-                : "text-slate-500 dark:text-slate-400"
+                ? "text-[#ee2e31] font-semibold"
+                : "text-[#071e22]/70 dark:text-[#f8fbfa]/75"
             }`}
           >
             Due: {new Date(a.due_date).toLocaleString()}
@@ -244,33 +304,36 @@ export default function AssignmentsPage({
 
   return (
     <AuthGuard>
-      <div className="flex flex-col items-center justify-start min-h-screen bg-slate-50 p-6 dark:bg-slate-900">
-        <div className="w-full max-w-4xl p-8 bg-white rounded-xl shadow-md dark:bg-slate-800">
-          <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col items-center justify-start min-h-screen p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-4xl p-6 sm:p-8 bg-white rounded-2xl border border-[#679289]/35 shadow-sm dark:bg-[#0d2b30]">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8 border-b border-[#679289]/25 pb-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#071e22] dark:text-white">
                 Assignments
               </h1>
-              <p className="text-slate-600 dark:text-slate-300 mt-1">
+              <p className="text-[#071e22]/75 dark:text-[#f8fbfa]/80 mt-1 text-sm">
                 Class {classId}
               </p>
             </div>
             {viewMode === "list" && user?.role === "teacher" && (
-              <Button onClick={() => setViewMode("create")}>
+              <Button
+                onClick={() => setViewMode("create")}
+                className="bg-[#1d7874] text-white hover:bg-[#071e22]"
+              >
                 + Create Assignment
               </Button>
             )}
           </div>
 
           {viewMode === "list" && (
-            <div className="space-y-10">
+            <div className="space-y-8">
               {/* Active Assignments */}
               <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 border-b pb-2">
+                <h2 className="text-xl font-bold text-[#071e22] dark:text-white mb-4 border-b border-[#679289]/25 pb-2">
                   Active Assignments
                 </h2>
                 {activeAssignments.length === 0 ? (
-                  <p className="text-slate-500 italic">
+                  <p className="text-[#071e22]/60 italic">
                     No active assignments.
                   </p>
                 ) : (
@@ -284,11 +347,11 @@ export default function AssignmentsPage({
 
               {/* Past Due Assignments */}
               <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 border-b pb-2">
+                <h2 className="text-xl font-bold text-[#071e22] dark:text-white mb-4 border-b border-[#679289]/25 pb-2">
                   Past Due
                 </h2>
                 {pastAssignments.length === 0 ? (
-                  <p className="text-slate-500 italic">No past assignments.</p>
+                  <p className="text-[#071e22]/60 italic">No past assignments.</p>
                 ) : (
                   <div className="grid gap-4">
                     {pastAssignments.map((a, idx) =>
@@ -324,7 +387,9 @@ export default function AssignmentsPage({
                     Student Submissions
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Assignment ID: {selectedAssignment.id}
+                    {selectedAssignment.title?.trim()
+                      ? selectedAssignment.title
+                      : `Assignment ID: ${selectedAssignment.id}`}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleCancel}>
@@ -346,7 +411,7 @@ export default function AssignmentsPage({
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <span className="font-semibold text-slate-800 dark:text-slate-100">
-                            Student ID: {sub.student_id}
+                            {getStudentDisplayName(sub)}
                           </span>
                           <span className="text-xs text-slate-500 ml-3">
                             Submitted:{" "}
@@ -395,6 +460,29 @@ export default function AssignmentsPage({
                             {ans.answer || "(No answer)"}
                           </div>
                         ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <label
+                          htmlFor={`feedback-${sub.id}`}
+                          className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300"
+                        >
+                          Review Feedback for Student (Optional)
+                        </label>
+                        <Input
+                          id={`feedback-${sub.id}`}
+                          placeholder="Write optional feedback for this student's submission..."
+                          value={
+                            feedbackEdits[sub.id] ?? sub.teacher_feedback ?? ""
+                          }
+                          onChange={(e) =>
+                            setFeedbackEdits((prev) => ({
+                              ...prev,
+                              [sub.id]: e.target.value,
+                            }))
+                          }
+                          className="bg-white dark:bg-slate-800 text-xs"
+                        />
                       </div>
                     </div>
                   ))}

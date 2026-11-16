@@ -29,18 +29,19 @@ The **K-8 School Information System (SIS)** is a full-stack, role-based web appl
    - Credential login (`POST /api/login/`) supporting numeric school User IDs or email addresses verified against `bcrypt` password hashes.
    - Signed HS256 JWT issuance and verification (`Authorization: Bearer <token>`), enforcing server-side role checks (`AdminRoleMiddleware`, `RequiredLogin`, `RequiredRoles`) so clients cannot spoof roles via custom headers.
 2. **Admin Dashboard & School-Wide Management (`/api/admin/*`)**:
-   - **School-Wide KPI Overview**: Real-time calculation of total students, teachers, parents, admins, active classes, student-to-teacher ratio, and daily attendance rate with health classifications (`Healthy`, `Warning`, `Critical`, `No Data`).
-   - **Class Section & Roster Management**: Creating class sections (`POST /api/admin/classes`), assigning teachers, and enrolling students (`POST /api/admin/classes/:classId/enroll`) with domain validation preventing duplicate enrollments.
-   - **User Directory & Account Provisioning**: Searchable and role-filterable user directory (`GET /api/admin/users`), account creation (`POST /api/admin/users`) with cryptographically generated role-based IDs (`6-digit` for students, `8-digit` for staff/parents) and `bcrypt` password hashing, and parent-to-student linkage (`POST /api/admin/parent-links`).
+   - **School-Wide KPI Overview**: Real-time calculation of total students, teachers, parents, admins, active classes, student-to-teacher ratio, and daily attendance rate with health classifications (`Healthy`, `Moderate`, `Needs Attention`, `No Records Today`).
+   - **Class Section & Roster Management**: Creating class sections (`POST /api/admin/classes`) with `class_name`, `subject`, `room_number`, `meeting_time`, and searchable teacher assignment, plus enrolling/removing students (`POST /api/admin/classes/:classId/enroll`, `DELETE /api/admin/classes/:classId/enroll/:studentId`) with domain validation preventing duplicate enrollments.
+   - **User Directory & Account Provisioning**: Searchable and role-filterable user directory (`GET /api/admin/users`), account creation (`POST /api/admin/users`) with cryptographically generated role-based IDs (`6-digit` for students, `8-digit` for staff/parents) and `bcrypt` password hashing, immediate attachment of parents, `allergies`, `emergency_contact`, and `notes` when creating students (or attaching children when creating parents), and searchable parent-to-student linkage (`POST /api/admin/parent-links`).
 3. **Assignment, Quiz & Auto-Grading Engine (`/api/assignments/*`, `/api/submissions/*`)**:
-   - Teachers can create, edit, and manage due dates for both interactive multi-question quizzes and document-based assignments.
-   - Pure domain auto-grading (`GradeAssignment` & `EvaluateSubmissionFeedback`) that scores objective questions, enforces a `0` score on late submissions (`IsLate`), flags free-form or file submissions as `"Needs Manual Grading"`, and allows teachers to override or finalize grades (`PUT /api/submissions/:id/grade`).
-4. **Classroom Attendance & Interactive Seating Grid (`/api/classes/:classId/attendance`, `/api/classes/:classId/seating`)**:
-   - Interactive 4×5 classroom seating grid allowing teachers to assign seats with domain collision detection (`ValidateSeatingPlan`).
-   - Daily attendance recording (`present`, `absent`, `tardy`) with per-student notes, historical daily logs, and student/parent read-only views.
+   - Teachers can create named assignments and quizzes (`title`), edit questions, and manage due dates for both interactive multi-question quizzes and document-based assignments.
+   - Pure domain auto-grading (`GradeAssignment` & `EvaluateSubmissionFeedback`) that scores objective questions, enforces a `0` score on late submissions (`IsLate`), flags free-form or file submissions as `"Needs Manual Grading"`, and allows teachers to update grades and optional written review feedback (`teacher_feedback` via `PUT /api/submissions/:id/grade`).
+   - Hierarchical **Grades & Feedback** view displaying students with their overall grades first, expanding on click to show each student's submitted assignments and teacher review feedback.
+4. **Classroom Attendance & Interactive Drag-and-Drop Seating Grid (`/api/classes/:classId/attendance`, `/api/classes/:classId/seating`)**:
+   - Interactive 4×5 drag-and-drop classroom seating grid allowing teachers to drag students from the class roster onto desks or swap desks with domain collision detection (`ValidateSeatingPlan`).
+   - Daily attendance recording (`present`, `absent`, `tardy`) with per-student notes and historical daily logs, restricted to teachers, parents, and administrators (not viewable by students).
 5. **Class Announcements, Calendar & Parent Portal (`/api/classes/:classId/announcements`, `/api/parents/:parentId/overview`)**:
-   - Teachers and admins can post class announcements visible on class pages and dashboards.
-   - Unified Parent Portal displaying all linked children along with their enrolled classes, assignment grades, attendance rates, and teacher announcements.
+   - Teachers and admins can post class announcements visible on class pages and dashboards, and named assignments appear on the academic calendar.
+   - Unified Parent Portal displaying all linked children along with their enrolled classes, assignment grades and teacher feedback, attendance rates, and teacher announcements.
 
 #### Out-of-Scope & Scope Adjustments
 - **Replaced AI Plagiarism Detection with Admin Dashboard**: During initial ideation, an AI submission/plagiarism detector was considered. That feature was formally scrapped and replaced with the **Admin Dashboard & School Management System** so the SIS provides complete institutional administration (school metrics, user provisioning, parent-child linking, and class/roster management).
@@ -71,15 +72,16 @@ Run the master schema script [`backend/init_schema.sql`](backend/init_schema.sql
 
 | Table Name | Primary Key | Purpose & Relationships |
 |---|---|---|
-| `public.users` | `"ID"` (`BIGINT`) | Stores all accounts across roles (`student`, `teacher`, `parent`, `admin`), `bcrypt` password hashes, names, emails, birthdays, and addresses. |
+| `public.users` | `"ID"` (`BIGINT`) | Stores all accounts across roles (`student`, `teacher`, `parent`, `admin`), `bcrypt` password hashes (`password_hash`), names, emails, birthdays, and addresses. |
 | `public.teachers` | `id` (`BIGSERIAL`) | Links teacher profile records to `public.users("ID")` (`user_id`). |
-| `public.students` | `id` (`BIGSERIAL`) | Links student profile records to `public.users("ID")` (`user_id`) and optional parent account `parent_id` (`public.users("ID")`). |
-| `public.class` | `id` (`BIGSERIAL`) | Stores class sections (`class_name`, `subject`, `room_number`) and assigned `teacher_id` (`public.teachers(id)`). |
+| `public.students` | `id` (`BIGSERIAL`) | Links student profile records to `public.users("ID")` (`user_id`), optional parent account `parent_id` (`public.users("ID")`), `allergies`, `emergency_contact`, and `notes`. |
+| `public.parents` | `id` (`BIGSERIAL`) | Links parent profile records to `public.users("ID")` (`user_id`) and contact/address metadata. |
+| `public.class` | `id` (`BIGSERIAL`) | Stores class sections (`class_name`, `subject`, `room_number`, `meeting_time`) and assigned `teacher_id` (`public.teachers(id)`). |
 | `public.enrollments` | `id` (`BIGSERIAL`) | Many-to-many join table linking `class_id` (`public.class`) and `student_id` (`public.students`) with `UNIQUE (class_id, student_id)`. |
-| `public.assignments` | `id` (`UUID`) | Stores class assignments and quizzes (`class_id`, `questions` JSONB array, `file`, `due_date`). |
-| `public.submissions` | `id` (`UUID`) | Stores student submissions (`assignment_id`, `student_id`, `class_id`, `grade`, `student_answer` JSONB, `date_submitted`). |
+| `public.assignments` | `id` (`UUID`) | Stores class assignments and quizzes (`class_id`, `title`, `questions` JSONB array, `file`, `due_date`). |
+| `public.submissions` | `id` (`UUID`) | Stores student submissions (`assignment_id`, `student_id`, `class_id`, `grade`, `teacher_feedback`, `student_answer` JSONB, `date_submitted`). |
 | `public.attendance` | `id` (`UUID`) | Stores daily attendance records (`class_id`, `student_id`, `date`, `status` in `present`/`absent`/`tardy`, `notes`) with `UNIQUE (class_id, student_id, date)`. |
-| `public.seating_assignments` | `id` (`BIGSERIAL`) | Stores classroom grid coordinates (`class_id`, `student_id`, `row_num`, `col_num`) with uniqueness constraints per seat and student. |
+| `public.seating_assignments` | `id` (`BIGSERIAL`) | Stores classroom grid coordinates (`class_id`, `student_id`, `row`, `col`) with uniqueness constraints per seat and student. |
 | `public.class_announcements` | `id` (`BIGSERIAL`) | Stores teacher/admin announcements (`class_id`, `"Title"`, `content`, `date`, `created_at`). |
 
 ### 3. Seed Initial Users (Without Committing Passwords)
@@ -206,10 +208,10 @@ npm run dev
 ```mermaid
 flowchart TB
     %% Users / Actors
-    Student(["Student <br/>Views grades, schedules, submissions, seating, and attendance"])
-    Teacher(["Teacher<br/>Inputs grades, takes attendance, manages seating, announcements & assignments"])
+    Student(["Student<br/>Views classes, calendar, assignments, quizzes, grades, and feedback"])
+    Teacher(["Teacher<br/>Creates assignments/quizzes, grades submissions, takes attendance, manages drag-and-drop seating & announcements"])
     Parent(["Parent<br/>Monitors linked children's progress, attendance, announcements, and grades"])
-    Admin(["Administrator<br/>Manages school KPIs, users, parent links, classes, and rosters"])
+    Admin(["Administrator<br/>Manages school KPIs, user onboarding, parent-child links, classes, and rosters"])
 
     %% The Core System
     SIS["School Information System (SIS)<br/>[Software System]<br/>The core system that stores and manages all school, user, and academic data."]
@@ -220,7 +222,7 @@ flowchart TB
     %% Connections (Users to System)
     Admin -- "Manages users, classes, rosters & school KPIs" --> SIS
     Teacher -- "Updates academic & attendance data" --> SIS
-    Student -- "Completes assignments & views academic data" --> SIS
+    Student -- "Completes assignments & views grades/feedback" --> SIS
     Parent -- "Monitors children's progress & attendance" --> SIS
 
     %% Connections (System to External Systems)
@@ -239,7 +241,7 @@ flowchart TB
         
         domain["Domain Model (Domain Tier)<br/>Admin, User, Class, Assignment, Submission, Attendance & Seating rules"]
         
-        db[("Supabase PostgreSQL (Data Tier)<br/>Persistent tables: users, teachers, students, class, enrollments, assignments, submissions, attendance, seating_assignments, class_announcements")]
+        db[("Supabase PostgreSQL (Data Tier)<br/>Persistent tables: users, teachers, students, parents, class, enrollments, assignments, submissions, attendance, seating_assignments, class_announcements")]
 
         ui -->|Authenticated REST API calls| api
         api -->|Validates & executes business rules on| domain
@@ -273,7 +275,8 @@ classDiagram
         +float64 StudentTeacherRatio
         +float64 AttendanceRate
         +string AttendanceStatus
-        +CalculateSchoolMetrics(...) SchoolMetrics
+        +EvaluateAttendanceStatus() string
+        +CalculateSchoolMetrics(studentCount, teacherCount, classCount, todayStatuses) SchoolMetrics
     }
 
     class AdminClassSection {
@@ -281,9 +284,10 @@ classDiagram
         +string Name
         +string Subject
         +string RoomNumber
+        +string MeetingTime
         +string TeacherID
         +int EnrolledCount
-        +Validate() error
+        +Validate(assignedUserRole) error
         +ValidateStudentEnrollment(studentID, existingIDs) error
     }
 
@@ -294,9 +298,14 @@ classDiagram
         +string Email
         +string Role
         +string Password
+        +string ParentID
+        +string[] StudentIDs
+        +string Allergies
+        +string EmergencyContact
+        +string Notes
         +Validate() error
-        +GenerateSchoolUserID(role) (string, error)
-        +ValidateParentStudentLink(...) error
+        +GenerateSchoolUserID(role) string
+        +ValidateParentStudentLink(parentID, parentRole, studentID, studentRole, existingIDs) error
     }
 
     class Class {
@@ -312,6 +321,7 @@ classDiagram
     class Assignment {
         +string ID
         +string ClassID
+        +string Title
         +string File
         +time.Time DueDate
         +Validate() error
@@ -336,8 +346,10 @@ classDiagram
         +string ID
         +string ClassID
         +string StudentID
+        +string StudentName
         +string AssignmentID
         +string Grade
+        +string TeacherFeedback
         +time.Time DateSubmitted
         +Validate() error
         +GradeAssignment(assignment) string
@@ -381,8 +393,6 @@ classDiagram
     Class "1" --> "*" AttendanceRecord : tracks daily
     Class "1" --> "*" SeatingAssignment : maps layout
     NotificationService ..> User : alerts (planned)
-
-    style NotificationService stroke-dasharray: 5 5
 ```
 
 ```mermaid
@@ -396,12 +406,12 @@ sequenceDiagram
 
     S->>UI: Submits completed answers
     UI->>H: POST /api/submissions (StudentAnswer payload)
-    H->>DB: Fetch Assignment details (due date, questions)
+    H->>DB: Fetch Assignment details (title, due date, questions)
     DB-->>H: Return Assignment entity
     H->>D: Validate() & GradeSubmission(submission)
     Note over D: Domain Business Rules:<br/>1. Mark late as '0'<br/>2. Auto-grade objective questions<br/>3. Flag free-form/file for review
     D-->>H: Grade string & SubmissionFeedback
-    H->>DB: INSERT INTO submissions (Grade, Feedback, DateSubmitted)
+    H->>DB: INSERT INTO submissions (Grade, TeacherFeedback, DateSubmitted)
     DB-->>H: 201 Created (Submission UUID)
     H-->>UI: Return submission payload & feedback
     UI-->>S: Instant score & per-question feedback display
@@ -435,7 +445,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Start with ADR-001 in Session 4.
 | **Week 9** (Oct 19 – Oct 25) | Instant auto-grading feedback engine | Per-question feedback breakdown, instant score reporting, student submission viewer | **Completed** |
 | **Week 10** (Oct 26 – Nov 1) | Attendance management & Parent Portal | Interactive seating chart manager, attendance logs (present/absent/tardy), Parent Portal overview | **Completed** |
 | **Week 11** (Nov 2 – Nov 8) | Admin Dashboard, domain refactoring & security hardening | Admin Dashboard (school KPIs, class creation, roster enrollment, user directory, parent linking), JWT admin middleware enforcement, `rows.Err()` checks, and full class page wiring | **Completed** |
-| **Week 12** (Nov 9 – Nov 15) | Final peer review & integration testing | End-to-end integration tests, CI workflow verification, cross-platform Docker run check | **In Progress** |
+| **Week 12** (Nov 9 – Nov 15) | Final peer review, UX refinement & integration testing | Parent/child/medical attachments during user creation, `meeting_time` class scheduling, drag-and-drop seating, hierarchical student grades & teacher review feedback, assignment titles on calendar, and cohesive accessible UI theme | **Completed** |
 | **Week 13** (Nov 16 – Nov 22) | Final release & documentation freeze | Final presentation demo, documentation audit, rubric validation, final submission | **Planned** |
 
 ### Risk Register & Handling Strategies
@@ -445,7 +455,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Start with ADR-001 in Session 4.
 | **RSK-01** | **Remote Database Latency or Mid-Stream Connection Dropouts** | Technical | Medium | High | Use connection pooling via `pgxpool.Pool` with connection timeouts, and verify `rows.Err()` after every `rows.Next()` loop so mid-stream connection failures return HTTP 500 instead of partial HTTP 200 responses. Maintain schema setup scripts (`init_schema.sql`, `init_assignments.sql`, `init_attendance.sql`). |
 | **RSK-02** | **Business Rule Leakage across Tier Boundaries** | Architecture | Medium | High | Enforce strict 4-tier separation: all business logic (admin KPIs, user/class validation, grading formulas, late penalties, attendance rate calculation, seating grid collisions, role validation) is implemented as pure methods on Domain structs with unit test coverage in Go. |
 | **RSK-03** | **Client Header Spoofing & Privilege Escalation** | Security | Medium | High | Never trust client-provided role headers (`X-User-Role`). `AdminRoleMiddleware` and `RequiredRoles` validate roles exclusively from signed HS256 Bearer JWT claims (`JWT_SECRET`) or server-authenticated context (`c.Locals`), and `GenerateSchoolUserID` returns explicit errors rather than hardcoded fallback IDs if CSPRNG fails. |
-| **RSK-04** | **AI-Generated Code Errors or Hallucinations** | Quality | High | Medium | Enforce mandatory **AI Critique Blocks** in `.github/pull_request_template.md` and `agent_documentation.md`. Every PR using AI explicitly records what was checked, what was wrong (e.g. header spoofing risks, missing `rows.Err()` checks, unmounted routes), and what was fixed. |
+| **RSK-04** | **AI-Generated Code Errors or Hallucinations** | Quality | High | Medium | Enforce mandatory **AI Critique Blocks** in `.github/pull_request_template.md`, `agent_documentation.md`, and `ai_mistakes_report.md`. Every PR using AI explicitly records what was checked, what was wrong (e.g. header spoofing risks, missing `rows.Err()` checks, unmounted routes, missing `meeting_time` column), and what was fixed. |
 | **RSK-05** | **Environment Disparities & Credential Leaks** | Operations | Medium | High | Containerize the complete stack with Docker Compose (`docker compose up --build`), and exclude all compiled binaries (`main`, `server`, `*.exe`) and credential files (`.env`, `backend/users.json`) via `.gitignore`. |
 | **RSK-06** | **Scope Creep across Multi-Role Portals** | Project | Medium | Medium | Maintain explicit scope boundaries: we replaced the initially proposed AI plagiarism detector with the full Admin Dashboard & School Management module so all four school roles (Student, Teacher, Parent, Admin) have complete, connected workflows. |
 
@@ -464,3 +474,5 @@ A one-line note per week keeps your commit story readable:
 - October 21: Added instant auto-grading feedback engine, seating chart manager, and Parent Portal
 - November 4: Refactored domain business rules into domain entities with unit tests, synchronized UML diagrams with planned borders, added week-by-week plan and risk register, and documented AI critique blocks
 - November 8: Replaced planned AI submission detector with full Admin Dashboard, added written project scope & database setup documentation, hardened JWT admin middleware & ID generation, added `rows.Err()` checks across all queries, connected class attendance/announcements/overview pages, and cleaned up `.gitignore`
+- November 15: Added student medical/parent attachments and parent child attachments during user creation, added searchable user/teacher inputs, fixed class `meeting_time` scheduling constraint, restricted attendance to teachers/parents with drag-and-drop seating, structured Grades & Feedback by student with optional teacher review feedback, added assignment names for the calendar, and unified the accessible `#071e22`/`#1d7874`/`#679289`/`#f4c095`/`#ee2e31` UI theme
+

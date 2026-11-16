@@ -16,6 +16,7 @@ export interface QuestionItemData {
 export interface AssignmentData {
   id: string;
   class_id: string;
+  title?: string;
   due_date: string;
   file?: string;
   questions?: QuestionItemData[];
@@ -47,8 +48,10 @@ export interface SubmissionData {
   id: string;
   class_id: string;
   student_id: string;
+  student_name?: string;
   assignment_id: string;
   grade: string;
+  teacher_feedback?: string;
   student_answer: { question_id: string; answer: string }[];
   date_submitted: string;
   feedback?: SubmissionFeedbackData;
@@ -234,7 +237,11 @@ export default function StudentAssignmentView({
             {isFileAssignment ? 'File Upload Assignment' : `Quiz / Questions (${questions.length})`}
           </span>
           <h2 className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">
-            {isFileAssignment ? 'File Assignment Details' : 'Assignment Questions & Workspace'}
+            {assignment.title?.trim()
+              ? assignment.title
+              : isFileAssignment
+                ? 'File Assignment Details'
+                : 'Assignment Questions & Workspace'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Due: {new Date(assignment.due_date).toLocaleString()}
@@ -265,6 +272,14 @@ export default function StudentAssignmentView({
                 Submitted on {new Date(submission.date_submitted).toLocaleString()} • Recorded Grade:{' '}
                 <span className="font-semibold">{submission.grade}</span>
               </p>
+              {submission.teacher_feedback && (
+                <div className="mt-3 rounded-lg border border-blue-200 bg-white/90 p-3 text-sm text-slate-800 dark:border-blue-800 dark:bg-slate-900 dark:text-slate-100">
+                  <span className="font-semibold text-blue-700 dark:text-blue-300">
+                    Teacher Feedback:{" "}
+                  </span>
+                  {submission.teacher_feedback}
+                </div>
+              )}
             </div>
 
             {!feedback.needs_manual_grading && feedback.total_points > 0 && (

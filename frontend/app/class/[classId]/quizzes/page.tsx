@@ -70,19 +70,22 @@ export default function QuizzesPage({
 
   return (
     <AuthGuard>
-      <div className="flex flex-col items-center justify-start min-h-screen bg-slate-50 p-6 dark:bg-slate-900">
-        <div className="w-full max-w-4xl p-8 bg-white rounded-xl shadow-md dark:bg-slate-800">
-          <div className="flex items-center justify-between mb-8">
+      <div className="flex min-h-screen flex-col items-center justify-start p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-4xl rounded-2xl border border-[#679289]/35 bg-white p-6 sm:p-8 shadow-sm dark:bg-[#0d2b30]">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-[#679289]/25 pb-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#071e22] dark:text-white">
                 Quizzes &amp; Auto-Graded Assessments
               </h1>
-              <p className="text-slate-600 dark:text-slate-300 mt-1">
+              <p className="mt-1 text-sm text-[#071e22]/75 dark:text-[#f8fbfa]/80">
                 Class {classId} • Instant auto-grading feedback upon completion
               </p>
             </div>
             {viewMode === "list" && user?.role === "teacher" && (
-              <Button onClick={() => setViewMode("create")}>
+              <Button
+                onClick={() => setViewMode("create")}
+                className="bg-[#1d7874] text-white hover:bg-[#071e22]"
+              >
                 + Create Quiz
               </Button>
             )}
@@ -91,7 +94,7 @@ export default function QuizzesPage({
           {viewMode === "list" && (
             <div className="space-y-4">
               {quizzes.length === 0 ? (
-                <p className="text-slate-500 italic">
+                <p className="italic text-[#071e22]/60">
                   No quizzes posted for this class yet.
                 </p>
               ) : (
@@ -102,21 +105,23 @@ export default function QuizzesPage({
                     0
                   );
                   const title =
-                    quiz.questions?.[0]?.question || `Quiz #${idx + 1}`;
+                    quiz.title?.trim() ||
+                    quiz.questions?.[0]?.question ||
+                    `Quiz #${idx + 1}`;
 
                   return (
                     <div
                       key={quiz.id}
-                      className="p-5 border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-shadow dark:bg-slate-800 dark:border-slate-700"
+                      className="flex flex-col justify-between gap-4 rounded-xl border border-[#679289]/35 bg-white p-5 shadow-xs transition-all hover:border-[#1d7874] hover:shadow-md sm:flex-row sm:items-center dark:bg-[#071e22]"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-semibold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-md dark:bg-indigo-950 dark:text-indigo-300">
+                          <span className="rounded-md bg-[#f4c095]/45 px-2.5 py-0.5 text-xs font-bold text-[#071e22]">
                             {quiz.questions?.length || 0} Questions • {totalPts}{" "}
                             pts
                           </span>
                           {sub && (
-                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md dark:bg-emerald-950 dark:text-emerald-300">
+                            <span className="rounded-md bg-[#1d7874]/15 px-2.5 py-0.5 text-xs font-bold text-[#1d7874]">
                               Auto-Graded: {sub.grade}
                               {sub.feedback
                                 ? ` (${sub.feedback.percentage}%)`
@@ -124,10 +129,10 @@ export default function QuizzesPage({
                             </span>
                           )}
                         </div>
-                        <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-100">
+                        <h3 className="text-lg font-bold text-[#071e22] dark:text-white">
                           {title}
                         </h3>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-[#071e22]/70 dark:text-[#f8fbfa]/75">
                           Due: {new Date(quiz.due_date).toLocaleString()}
                         </p>
                       </div>

@@ -87,6 +87,7 @@ type AdminClassSection struct {
 	Name          string                       `json:"name"`
 	Subject       string                       `json:"subject"`
 	RoomNumber    string                       `json:"room_number"`
+	MeetingTime   string                       `json:"meeting_time"`
 	TeacherID     string                       `json:"teacher_id"`
 	TeacherName   string                       `json:"teacher_name"`
 	EnrolledCount int                          `json:"enrolled_count"`
@@ -109,6 +110,9 @@ type AdminUserRecord struct {
 	Address          string   `json:"address,omitempty"`
 	LinkedParentID   string   `json:"linked_parent_id,omitempty"`
 	LinkedStudentIDs []string `json:"linked_student_ids,omitempty"`
+	Allergies        string   `json:"allergies,omitempty"`
+	EmergencyContact string   `json:"emergency_contact,omitempty"`
+	Notes            string   `json:"notes,omitempty"`
 }
 
 // FullName returns the formatted full name for the directory user record.
@@ -156,14 +160,19 @@ func FilterUsers(users []AdminUserRecord, roleFilter string, searchQuery string)
 
 // CreateUserRequest represents the payload for creating a new school user account.
 type CreateUserRequest struct {
-	ID        string `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	Password  string `json:"password"`
-	Birthday  string `json:"birthday"`
-	Address   string `json:"address"`
+	ID               string   `json:"id"`
+	FirstName        string   `json:"first_name"`
+	LastName         string   `json:"last_name"`
+	Email            string   `json:"email"`
+	Role             string   `json:"role"`
+	Password         string   `json:"password"`
+	Birthday         string   `json:"birthday"`
+	Address          string   `json:"address"`
+	ParentID         string   `json:"parent_id,omitempty"`
+	StudentIDs       []string `json:"student_ids,omitempty"`
+	Allergies        string   `json:"allergies,omitempty"`
+	EmergencyContact string   `json:"emergency_contact,omitempty"`
+	Notes            string   `json:"notes,omitempty"`
 }
 
 // Validate enforces domain business rules when an administrator creates a new user account.

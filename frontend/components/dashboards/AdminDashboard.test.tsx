@@ -152,14 +152,20 @@ describe("AdminDashboard", () => {
           } as Response;
         }
         if (url.endsWith("/api/admin/users") && method === "POST") {
+          const reqBody = init?.body ? JSON.parse(String(init.body)) : {};
           return {
             ok: true,
             json: async () => ({
-              id: "88990011",
-              first_name: "Elena",
-              last_name: "Rivera",
-              email: "elena.rivera@school.edu",
-              role: "teacher",
+              id: reqBody.id || "88990011",
+              first_name: reqBody.first_name || "Elena",
+              last_name: reqBody.last_name || "Rivera",
+              email: reqBody.email || "elena.rivera@school.edu",
+              role: reqBody.role || "teacher",
+              linked_parent_id: reqBody.parent_id || "",
+              linked_student_ids: reqBody.student_ids || [],
+              allergies: reqBody.allergies || "",
+              emergency_contact: reqBody.emergency_contact || "",
+              notes: reqBody.notes || "",
             }),
           } as Response;
         }
@@ -373,5 +379,59 @@ describe("AdminDashboard", () => {
 
     expect(screen.getByText("Parent ID: 76633852")).toBeInTheDocument();
     expect(screen.getByText("Linked Children: 438813")).toBeInTheDocument();
+  });
+
+  it("allows admin to attach parent, allergies, emergency contact, and notes when creating a student", async () => {
+    render(<AdminDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Patty Parent")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("open-create-user-modal"));
+
+    fireEvent.change(screen.getByLabelText("First Name"), {
+      target: { value: "Leo" },
+    });
+    fireEvent.change(screen.getByLabelText("Last Name"), {
+      target: { value: "Learner" },
+    });
+    fireEvent.change(screen.getByLabelText("Email Address"), {
+      target: { value: "leo@school.edu" },
+    });
+    fireEvent.change(screen.getByLabelText("User Role"), {
+      target: { value: "student" },
+    });
+    fireEvent.change(screen.getByLabelText("Initial Password"), {
+      target: { value: "Secret123!" },
+    });
+
+    // Type parent name to search & attach
+    fireEvent.change(screen.getByLabelText("Search Parent to Attach"), {
+      target: { value: "Patty Parent" },
+    });
+    fireEvent.change(screen.getByLabelText("Allergies"), {
+      target: { value: "Peanuts" },
+    });
+    fireEvent.change(screen.getByLabelText("Emergency Contact Info"), {
+      target: { value: "Patty Parent (555-0199)" },
+    });
+    fireEvent.change(screen.getByLabelText("Student Notes"), {
+      target: { value: "Needs front row seat" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /create user account/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Allergies: Peanuts/i)).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Emergency: Patty Parent \(555-0199\)/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Note: Needs front row seat/i)
+    ).toBeInTheDocument();
   });
 });
