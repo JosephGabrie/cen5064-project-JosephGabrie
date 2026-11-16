@@ -38,6 +38,7 @@ export interface ParentAnnouncementItem {
 
 export interface ChildGradeItemData {
   assignment_id: string;
+  title?: string;
   class_id: string;
   class_name?: string;
   type?: string;
@@ -45,6 +46,7 @@ export interface ChildGradeItemData {
   submitted?: boolean;
   submission_id?: string;
   grade: string;
+  teacher_feedback?: string;
   date_submitted?: string;
   feedback?: SubmissionFeedbackData;
 }
@@ -162,20 +164,20 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
   ).length;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
       {/* Header Banner */}
-      <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-200 dark:bg-slate-800 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-6 bg-white rounded-2xl shadow-sm border border-[#679289]/35 dark:bg-[#0d2b30] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md dark:bg-blue-950 dark:text-blue-300">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#071e22] bg-[#f4c095]/50 px-3 py-1 rounded-full">
             Parent Portal
           </span>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white mt-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#071e22] dark:text-white mt-2">
             Parent Portal Dashboard
           </h1>
-          <p className="text-slate-600 dark:text-slate-300 mt-1">
+          <p className="text-[#071e22]/75 dark:text-[#f8fbfa]/80 mt-1 text-sm">
             Monitoring academic progress, attendance, and class announcements
             for{' '}
-            <span className="font-semibold text-slate-900 dark:text-white">
+            <span className="font-bold text-[#1d7874] dark:text-[#f4c095]">
               {activeChild.first_name} {activeChild.last_name}
             </span>{' '}
             (Student ID: {childDisplayId})
@@ -186,7 +188,7 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
           <div className="flex items-center gap-2">
             <label
               htmlFor="child-selector"
-              className="text-xs font-semibold uppercase text-slate-500"
+              className="text-xs font-bold uppercase text-[#071e22]/70"
             >
               Linked Child:
             </label>
@@ -194,7 +196,7 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
               id="child-selector"
               value={selectedChildIndex}
               onChange={(e) => setSelectedChildIndex(Number(e.target.value))}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
+              className="rounded-lg border border-[#679289]/50 bg-white px-3 py-2 text-sm font-semibold text-[#071e22] dark:bg-[#071e22] dark:text-white"
             >
               {childrenList.map((ch, idx) => (
                 <option key={String(ch.user_id ?? ch.student_id)} value={idx}>
@@ -209,51 +211,51 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
 
       {/* Top KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700">
-          <div className="text-xs font-semibold uppercase text-slate-500">
+        <div className="p-5 rounded-xl bg-white border border-[#679289]/35 shadow-sm dark:bg-[#0d2b30]">
+          <div className="text-xs font-bold uppercase text-[#071e22]/70">
             Attendance Rate
           </div>
-          <div className="text-3xl font-bold text-emerald-600 mt-1">
+          <div className="text-3xl font-extrabold text-[#1d7874] mt-1">
             {att?.attendance_rate ?? 100}%
           </div>
-          <div className="text-xs text-slate-500 mt-2">
+          <div className="text-xs text-[#071e22]/70 mt-2">
             {att?.present_count ?? 0} Present • {att?.tardy_count ?? 0} Tardy •{' '}
             {att?.absent_count ?? 0} Absent
           </div>
         </div>
 
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700">
-          <div className="text-xs font-semibold uppercase text-slate-500">
+        <div className="p-5 rounded-xl bg-white border border-[#679289]/35 shadow-sm dark:bg-[#0d2b30]">
+          <div className="text-xs font-bold uppercase text-[#071e22]/70">
             Average Assignment Score
           </div>
-          <div className="text-3xl font-bold text-blue-600 mt-1">
+          <div className="text-3xl font-extrabold text-[#071e22] mt-1">
             {avgGradePct !== null ? `${avgGradePct}%` : 'N/A'}
           </div>
-          <div className="text-xs text-slate-500 mt-2">
+          <div className="text-xs text-[#071e22]/70 mt-2">
             {completedCount} Completed / {normalizedGrades.length} Total
           </div>
         </div>
 
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700">
-          <div className="text-xs font-semibold uppercase text-slate-500">
+        <div className="p-5 rounded-xl bg-white border border-[#679289]/35 shadow-sm dark:bg-[#0d2b30]">
+          <div className="text-xs font-bold uppercase text-[#071e22]/70">
             Enrolled Classes
           </div>
-          <div className="text-3xl font-bold text-indigo-600 mt-1">
+          <div className="text-3xl font-extrabold text-[#1d7874] mt-1">
             {classes.length}
           </div>
-          <div className="text-xs text-slate-500 mt-2">
+          <div className="text-xs text-[#071e22]/70 mt-2">
             Active academic courses
           </div>
         </div>
 
-        <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700">
-          <div className="text-xs font-semibold uppercase text-slate-500">
+        <div className="p-5 rounded-xl bg-white border border-[#679289]/35 shadow-sm dark:bg-[#0d2b30]">
+          <div className="text-xs font-bold uppercase text-[#071e22]/70">
             Class Announcements
           </div>
-          <div className="text-3xl font-bold text-amber-600 mt-1">
+          <div className="text-3xl font-extrabold text-[#071e22] mt-1">
             {announcements.length}
           </div>
-          <div className="text-xs text-slate-500 mt-2">
+          <div className="text-xs text-[#071e22]/70 mt-2">
             Recent teacher updates
           </div>
         </div>
@@ -341,7 +343,7 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
                     <div>
                       <div className="font-semibold text-slate-800 dark:text-slate-100">
                         {item.class_name || `Class ${item.class_id}`} •{' '}
-                        {item.type || 'Assignment'}
+                        {item.title?.trim() || item.type || 'Assignment'}
                       </div>
                       <div className="text-xs text-slate-500">
                         {item.date_submitted
@@ -392,6 +394,15 @@ export default function ParentDashboard({ parentId }: ParentDashboardProps) {
                           </span>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {item.teacher_feedback && (
+                    <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-slate-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-slate-200">
+                      <span className="font-semibold text-blue-800 dark:text-blue-300">
+                        Teacher Feedback:{' '}
+                      </span>
+                      {item.teacher_feedback}
                     </div>
                   )}
                 </div>

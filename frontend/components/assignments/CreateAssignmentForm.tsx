@@ -24,6 +24,7 @@ const questionSchema = z.object({
 });
 
 const formSchema = z.object({
+  title: z.string().optional(),
   classId: z.string().min(1, 'Class ID is required'),
   dueDate: z.string().min(1, 'Due Date is required'),
   assignmentType: z.enum(['question', 'file']),
@@ -178,12 +179,14 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: initialData ? {
+      title: initialData.title || '',
       classId: initialData.class_id || classId || '',
       dueDate: new Date(new Date(initialData.due_date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
       assignmentType: initialData.file ? 'file' : 'question',
       fileUrl: initialData.file || '',
       questions: initialData.questions || [],
     } : {
+      title: '',
       classId: classId || '',
       assignmentType: 'question',
       questions: [],
@@ -206,6 +209,7 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
     setSubmitError('');
     try {
       const backendPayload = {
+        title: data.title?.trim() || '',
         class_id: data.classId,
         due_date: new Date(data.dueDate).toISOString(),
         questions: data.assignmentType === 'question' ? data.questions?.map(q => ({
@@ -238,7 +242,7 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
 
       setShowSuccessPopup(true);
       if (onSuccess) {
-        setTimeout(() => onSuccess(), 1500); // Give them time to see the popup
+        setTimeout(() => onSuccess(), 1500);
       }
     } catch (error: unknown) {
       setSubmitError(error instanceof Error ? error.message : "An unexpected error occurred.");
@@ -265,101 +269,131 @@ export default function CreateAssignmentForm({ classId, initialData, onSuccess, 
         </div>
       )}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-8 max-w-4xl w-full mx-auto border rounded-xl shadow-sm bg-card text-card-foreground">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold mb-6">{initialData ? 'Edit Assignment' : 'Create Assignment'}</h2>
-        {onCancel && (
-          <Button variant="outline" type="button" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-      </div>
-
-      <div className="space-y-6">
-        {classId ? (
-          <input type="hidden" {...register('classId')} />
-        ) : (
-          <div>
-            <label htmlFor="classId" className="block text-sm font-medium mb-1">Class ID</label>
-            <Input id="classId" {...register('classId')} className="w-full md:w-1/2" />
-            {errors.classId && <p className="text-red-500 text-sm mt-1">{errors.classId.message}</p>}
-          </div>
-        )}
-
-        <div>
-          <label htmlFor="dueDate" className="block text-sm font-medium mb-1">Due Date</label>
-          <Input id="dueDate" type="datetime-local" {...register('dueDate')} className="w-full md:w-1/2" />
-          {errors.dueDate && <p className="text-red-500 text-sm mt-1">{errors.dueDate.message}</p>}
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold mb-6">{initialData ? 'Edit Assignment' : 'Create Assignment'}</h2>
+          {onCancel && (
+            <Button variant="outline" type="button" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
         </div>
 
-        <fieldset>
-          <legend className="text-sm font-medium mb-2">Assignment Type</legend>
-          <div className="flex gap-6">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                value="question"
-                {...register('assignmentType')}
-                aria-label="Question"
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="font-medium">Question Builder</span>
+        <div className="space-y-6">
+          <div>
+            <label htmlFor="assignmentTitle" className="block text-sm font-medium mb-1">
+              Assignment Name
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                value="file"
-                {...register('assignmentType')}
-                aria-label="File"
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="font-medium">File Upload</span>
-            </label>
+            <Input
+              id="assignmentTitle"
+              placeholder="e.g. Chapter 4 Fractions Homework"
+              {...register('title')}
+              className="w-full md:w-2/3"
+            />
           </div>
-        </fieldset>
 
-        {assignmentType === 'file' && (
-          <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-800/50">
-            <label htmlFor="fileUrl" className="block text-sm font-medium mb-1">File URL</label>
-            <Input id="fileUrl" {...register('fileUrl')} placeholder="https://..." className="w-full" />
-            {errors.fileUrl && <p className="text-red-500 text-sm mt-1">{errors.fileUrl.message}</p>}
-          </div>
-        )}
-
-        {assignmentType === 'question' && (
-          <div className="space-y-6 border border-slate-200 dark:border-slate-700 p-6 rounded-xl bg-slate-50 dark:bg-slate-900/20">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold">Questions</h3>
-              <Button type="button" onClick={() => append({ question: '', answer: '', points: 1, type: 'multiple_choice', options: ['', ''] })}>
-                + Add Question
-              </Button>
+          {classId ? (
+            <input type="hidden" {...register('classId')} />
+          ) : (
+            <div>
+              <label htmlFor="classId" className="block text-sm font-medium mb-1">Class ID</label>
+              <Input id="classId" {...register('classId')} className="w-full md:w-1/2" />
+              {errors.classId && <p className="text-red-500 text-sm mt-1">{errors.classId.message}</p>}
             </div>
-            
-            {fields.length === 0 && (
-              <p className="text-slate-500 italic text-center py-8">No questions added yet. Click &quot;Add Question&quot; to begin.</p>
-            )}
+          )}
 
-            <div className="space-y-6">
-              {fields.map((field, index) => (
-                <QuestionItem
-                  key={field.id}
-                  index={index}
-                  control={control}
-                  register={register}
-                  watch={watch}
-                  remove={remove}
-                  errors={errors}
+          <div>
+            <label htmlFor="dueDate" className="block text-sm font-medium mb-1">Due Date</label>
+            <Input id="dueDate" type="datetime-local" {...register('dueDate')} className="w-full md:w-1/2" />
+            {errors.dueDate && <p className="text-red-500 text-sm mt-1">{errors.dueDate.message}</p>}
+          </div>
+
+          <fieldset>
+            <legend className="text-sm font-medium mb-2">Assignment Type</legend>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="question"
+                  {...register('assignmentType')}
+                  aria-label="Question"
+                  className="w-4 h-4 text-blue-600"
                 />
-              ))}
+                <span className="font-medium">Question Builder</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="file"
+                  {...register('assignmentType')}
+                  aria-label="File"
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="font-medium">File Upload</span>
+              </label>
             </div>
-          </div>
-        )}
-      </div>
+          </fieldset>
 
-      {submitError && <p className="text-red-500 text-sm text-center mt-4">{submitError}</p>}
-      <Button type="submit" size="lg" className="w-full text-lg mt-8" disabled={isSubmitting}>
-        {isSubmitting ? (initialData ? "Updating..." : "Publishing...") : (initialData ? "Update Assignment" : "Publish Assignment")}
-      </Button>
-    </form>
+          {assignmentType === 'file' && (
+            <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <label htmlFor="fileUrl" className="block text-sm font-medium mb-1">File URL</label>
+              <Input id="fileUrl" {...register('fileUrl')} placeholder="https://..." className="w-full" />
+              {errors.fileUrl && <p className="text-red-500 text-sm mt-1">{errors.fileUrl.message}</p>}
+            </div>
+          )}
+
+          {assignmentType === 'question' && (
+            <div className="space-y-6 border border-slate-200 dark:border-slate-700 p-6 rounded-xl bg-slate-50 dark:bg-slate-900/20">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold">Questions</h3>
+              </div>
+              
+              {fields.length === 0 && (
+                <p className="text-slate-500 italic text-center py-6">
+                  No questions added yet. Click &quot;Add Question&quot; below to begin.
+                </p>
+              )}
+
+              <div className="space-y-6">
+                {fields.map((field, index) => (
+                  <QuestionItem
+                    key={field.id}
+                    index={index}
+                    control={control}
+                    register={register}
+                    watch={watch}
+                    remove={remove}
+                    errors={errors}
+                  />
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed border-2 py-5 font-semibold"
+                  onClick={() =>
+                    append({
+                      question: '',
+                      answer: '',
+                      points: 1,
+                      type: 'multiple_choice',
+                      options: ['', ''],
+                    })
+                  }
+                >
+                  + Add Question
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {submitError && <p className="text-red-500 text-sm text-center mt-4">{submitError}</p>}
+        <Button type="submit" size="lg" className="w-full text-lg mt-4" disabled={isSubmitting}>
+          {isSubmitting ? (initialData ? "Updating..." : "Publishing...") : (initialData ? "Update Assignment" : "Publish Assignment")}
+        </Button>
+      </form>
     </>
   );
 }

@@ -546,7 +546,7 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 
 			// 2. Assignments & Submissions (Grades)
 			assignRows, err := conn.Query(ctx, `
-				SELECT a.id::text, a.class_id, COALESCE(c.class_name, 'Class ' || a.class_id), a.questions, COALESCE(a.file, ''), a.due_date
+				SELECT a.id::text, a.class_id, COALESCE(a.title, ''), COALESCE(c.class_name, 'Class ' || a.class_id), a.questions, COALESCE(a.file, ''), a.due_date
 				FROM public.assignments a
 				JOIN public.class c ON a.class_id = c.id::text
 				JOIN public.enrollments e ON c.id = e.class_id
@@ -561,7 +561,7 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 				var childAssignments []rawAssign
 				for assignRows.Next() {
 					var ra rawAssign
-					if err := assignRows.Scan(&ra.a.ID, &ra.a.ClassID, &ra.className, &ra.a.Questions, &ra.a.File, &ra.a.DueDate); err == nil {
+					if err := assignRows.Scan(&ra.a.ID, &ra.a.ClassID, &ra.a.Title, &ra.className, &ra.a.Questions, &ra.a.File, &ra.a.DueDate); err == nil {
 						childAssignments = append(childAssignments, ra)
 					}
 				}
@@ -578,6 +578,7 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 					}
 					item := ChildGradeItem{
 						AssignmentID: ra.a.ID,
+						Title:        ra.a.Title,
 						ClassID:      ra.a.ClassID,
 						ClassName:    ra.className,
 						Type:         assignType,
@@ -587,17 +588,18 @@ func getParentOverview(conn *pgxpool.Pool) fiber.Handler {
 
 					var sub assignments.Submission
 					err := conn.QueryRow(ctx, `
-						SELECT id::text, class_id, student_id, assignment_id::text, COALESCE(grade, ''), student_answer, date_submitted
+						SELECT id::text, class_id, student_id, assignment_id::text, COALESCE(grade, ''), COALESCE(teacher_feedback, ''), student_answer, date_submitted
 						FROM public.submissions
 						WHERE assignment_id::text = $1 AND (student_id = $2 OR student_id = $3)
 						ORDER BY date_submitted DESC LIMIT 1
 					`, ra.a.ID, child.StudentID, child.InternalID).Scan(
-						&sub.ID, &sub.ClassID, &sub.StudentID, &sub.AssignmentID, &sub.Grade, &sub.StudentAnswer, &sub.DateSubmitted,
+						&sub.ID, &sub.ClassID, &sub.StudentID, &sub.AssignmentID, &sub.Grade, &sub.TeacherFeedback, &sub.StudentAnswer, &sub.DateSubmitted,
 					)
 					if err == nil {
 						item.Submitted = true
 						item.SubmissionID = sub.ID
 						item.Grade = sub.Grade
+						item.TeacherFeedback = sub.TeacherFeedback
 						item.DateSubmitted = sub.DateSubmitted.Format(time.RFC3339)
 						fb := assignments.EvaluateSubmissionFeedback(ra.a, sub)
 						item.Feedback = &fb

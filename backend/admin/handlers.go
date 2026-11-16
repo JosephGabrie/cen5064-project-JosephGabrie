@@ -230,6 +230,7 @@ func getAdminClasses(conn *pgxpool.Pool) fiber.Handler {
 		ctx := context.Background()
 		query := `
 			SELECT c.id::text, COALESCE(c.class_name, ''), COALESCE(c.subject, ''), COALESCE(c.room_number::text, ''),
+			       COALESCE(c.meeting_time, 'TBD'),
 			       COALESCE(t.user_id::text, c.teacher_id::text, ''),
 			       COALESCE(NULLIF(TRIM(COALESCE(u."FirstName", '') || ' ' || COALESCE(u."LastName", '')), ''), 'Unassigned')
 			FROM public.class c
@@ -246,7 +247,7 @@ func getAdminClasses(conn *pgxpool.Pool) fiber.Handler {
 		classes := []AdminClassSection{}
 		for rows.Next() {
 			var cls AdminClassSection
-			if err := rows.Scan(&cls.ID, &cls.Name, &cls.Subject, &cls.RoomNumber, &cls.TeacherID, &cls.TeacherName); err != nil {
+			if err := rows.Scan(&cls.ID, &cls.Name, &cls.Subject, &cls.RoomNumber, &cls.MeetingTime, &cls.TeacherID, &cls.TeacherName); err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse class row"})
 			}
 			cls.Students = []attendance.EnrolledStudent{}
@@ -296,6 +297,10 @@ func postAdminClass(conn *pgxpool.Pool) fiber.Handler {
 		req.Name = strings.TrimSpace(req.Name)
 		req.Subject = strings.TrimSpace(req.Subject)
 		req.RoomNumber = strings.TrimSpace(req.RoomNumber)
+		req.MeetingTime = strings.TrimSpace(req.MeetingTime)
+		if req.MeetingTime == "" {
+			req.MeetingTime = "MWF 9:00 AM - 10:00 AM"
+		}
 		req.TeacherID = strings.TrimSpace(req.TeacherID)
 
 		if conn == nil {
@@ -335,10 +340,10 @@ func postAdminClass(conn *pgxpool.Pool) fiber.Handler {
 
 		var createdClassID string
 		err := conn.QueryRow(ctx, `
-			INSERT INTO public.class (class_name, subject, room_number, teacher_id)
-			VALUES ($1, $2, $3, $4::bigint)
+			INSERT INTO public.class (class_name, subject, room_number, teacher_id, meeting_time)
+			VALUES ($1, $2, $3, $4::bigint, $5)
 			RETURNING id::text
-		`, req.Name, req.Subject, req.RoomNumber, teacherTableID).Scan(&createdClassID)
+		`, req.Name, req.Subject, req.RoomNumber, teacherTableID, req.MeetingTime).Scan(&createdClassID)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create class: " + err.Error()})
 		}
@@ -477,7 +482,10 @@ func getAdminUsers(conn *pgxpool.Pool) fiber.Handler {
 			       LOWER(COALESCE(u."Role", 'student')),
 			       COALESCE(u."Birthday"::text, ''),
 			       COALESCE(u."Address", ''),
-			       COALESCE(s.parent_id::text, '')
+			       COALESCE(s.parent_id::text, ''),
+			       COALESCE(s.allergies, ''),
+			       COALESCE(s.emergency_contact, ''),
+			       COALESCE(s.notes, '')
 			FROM public.users u
 			LEFT JOIN public.students s ON s.user_id = u."ID"
 			ORDER BY u."FirstName" ASC, u."LastName" ASC
@@ -502,6 +510,9 @@ func getAdminUsers(conn *pgxpool.Pool) fiber.Handler {
 				&u.Birthday,
 				&u.Address,
 				&u.LinkedParentID,
+				&u.Allergies,
+				&u.EmergencyContact,
+				&u.Notes,
 			); err == nil {
 				if u.LinkedParentID != "" {
 					parentChildrenMap[u.LinkedParentID] = append(parentChildrenMap[u.LinkedParentID], u.ID)
@@ -597,20 +608,85 @@ func postAdminUser(conn *pgxpool.Pool) fiber.Handler {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create user: " + err.Error()})
 		}
 
+		linkedParentID := strings.TrimSpace(req.ParentID)
+		allergies := strings.TrimSpace(req.Allergies)
+		emergencyContact := strings.TrimSpace(req.EmergencyContact)
+		notes := strings.TrimSpace(req.Notes)
+		linkedStudentIDs := []string{}
+
 		if normalizedRole == "student" {
-			_, _ = conn.Exec(ctx, `INSERT INTO public.students (user_id) VALUES ($1::bigint) ON CONFLICT DO NOTHING`, createdID)
+			var existingStudentRowID string
+			_ = conn.QueryRow(ctx, `SELECT id::text FROM public.students WHERE user_id::text = $1 LIMIT 1`, createdID).Scan(&existingStudentRowID)
+
+			var parentPtr *string
+			if linkedParentID != "" {
+				parentPtr = &linkedParentID
+			}
+
+			if existingStudentRowID == "" {
+				_, _ = conn.Exec(ctx, `
+					INSERT INTO public.students (user_id, parent_id, allergies, emergency_contact, notes)
+					VALUES ($1::bigint, $2::bigint, $3, $4, $5)
+				`, createdID, parentPtr, allergies, emergencyContact, notes)
+			} else {
+				_, _ = conn.Exec(ctx, `
+					UPDATE public.students
+					SET parent_id = $1::bigint, allergies = $2, emergency_contact = $3, notes = $4
+					WHERE id::text = $5
+				`, parentPtr, allergies, emergencyContact, notes, existingStudentRowID)
+			}
 		} else if normalizedRole == "teacher" {
-			_, _ = conn.Exec(ctx, `INSERT INTO public.teachers (user_id) VALUES ($1::bigint) ON CONFLICT DO NOTHING`, createdID)
+			var existingTeacherRowID string
+			_ = conn.QueryRow(ctx, `SELECT id::text FROM public.teachers WHERE user_id::text = $1 LIMIT 1`, createdID).Scan(&existingTeacherRowID)
+			if existingTeacherRowID == "" {
+				_, _ = conn.Exec(ctx, `INSERT INTO public.teachers (user_id) VALUES ($1::bigint)`, createdID)
+			}
+		} else if normalizedRole == "parent" {
+			var existingParentRowID string
+			_ = conn.QueryRow(ctx, `SELECT id::text FROM public.parents WHERE user_id::text = $1 LIMIT 1`, createdID).Scan(&existingParentRowID)
+			if existingParentRowID == "" {
+				_, _ = conn.Exec(ctx, `INSERT INTO public.parents (user_id, address) VALUES ($1::bigint, $2)`, createdID, addressPtr)
+			}
+
+			for _, rawChildID := range req.StudentIDs {
+				childID := strings.TrimSpace(rawChildID)
+				if childID == "" {
+					continue
+				}
+				var stRowID string
+				_ = conn.QueryRow(ctx, `SELECT id::text FROM public.students WHERE user_id::text = $1 OR id::text = $1 LIMIT 1`, childID).Scan(&stRowID)
+				if stRowID == "" {
+					_, linkErr := conn.Exec(ctx, `
+						INSERT INTO public.students (user_id, parent_id)
+						VALUES ($1::bigint, $2::bigint)
+					`, childID, createdID)
+					if linkErr == nil {
+						linkedStudentIDs = append(linkedStudentIDs, childID)
+					}
+				} else {
+					_, linkErr := conn.Exec(ctx, `
+						UPDATE public.students SET parent_id = $1::bigint WHERE id::text = $2
+					`, createdID, stRowID)
+					if linkErr == nil {
+						linkedStudentIDs = append(linkedStudentIDs, childID)
+					}
+				}
+			}
 		}
 
 		createdUser := AdminUserRecord{
-			ID:        createdID,
-			FirstName: strings.TrimSpace(req.FirstName),
-			LastName:  strings.TrimSpace(req.LastName),
-			Email:     emailVal,
-			Role:      normalizedRole,
-			Birthday:  strings.TrimSpace(req.Birthday),
-			Address:   strings.TrimSpace(req.Address),
+			ID:               createdID,
+			FirstName:        strings.TrimSpace(req.FirstName),
+			LastName:         strings.TrimSpace(req.LastName),
+			Email:            emailVal,
+			Role:             normalizedRole,
+			Birthday:         strings.TrimSpace(req.Birthday),
+			Address:          strings.TrimSpace(req.Address),
+			LinkedParentID:   linkedParentID,
+			LinkedStudentIDs: linkedStudentIDs,
+			Allergies:        allergies,
+			EmergencyContact: emergencyContact,
+			Notes:            notes,
 		}
 		return c.Status(fiber.StatusCreated).JSON(createdUser)
 	}

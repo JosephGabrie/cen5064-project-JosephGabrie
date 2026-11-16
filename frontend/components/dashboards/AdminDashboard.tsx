@@ -16,6 +16,11 @@ import {
   X,
   Search,
   Link2,
+  Clock,
+  HeartPulse,
+  Phone,
+  FileText,
+  LayoutGrid,
 } from "lucide-react";
 
 export interface SchoolMetricsData {
@@ -55,6 +60,7 @@ export interface AdminClassSectionData {
   name: string;
   subject: string;
   room_number: string;
+  meeting_time?: string;
   teacher_id: string;
   teacher_name: string;
   enrolled_count: number;
@@ -71,7 +77,12 @@ export interface AdminUserDirectoryRecord {
   address?: string;
   linked_parent_id?: string;
   linked_student_ids?: string[];
+  allergies?: string;
+  emergency_contact?: string;
+  notes?: string;
 }
+
+type AdminSectionTab = "all" | "overview" | "classes" | "users";
 
 function buildAdminHeaders(): HeadersInit {
   const headers: Record<string, string> = {
@@ -98,6 +109,7 @@ export function AdminDashboard() {
     AdminUserDirectoryRecord[]
   >([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<AdminSectionTab>("all");
 
   // User Directory Filter State
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
@@ -112,6 +124,17 @@ export function AdminDashboard() {
   const [newUserEmail, setNewUserEmail] = useState<string>("");
   const [newUserRole, setNewUserRole] = useState<string>("student");
   const [newUserPassword, setNewUserPassword] = useState<string>("");
+  // Student-specific attachment & medical fields
+  const [newUserParentId, setNewUserParentId] = useState<string>("");
+  const [newUserParentSearch, setNewUserParentSearch] = useState<string>("");
+  const [newUserAllergies, setNewUserAllergies] = useState<string>("");
+  const [newUserEmergencyContact, setNewUserEmergencyContact] =
+    useState<string>("");
+  const [newUserNotes, setNewUserNotes] = useState<string>("");
+  // Parent-specific child attachment fields
+  const [newUserStudentIds, setNewUserStudentIds] = useState<string[]>([]);
+  const [newUserChildSearch, setNewUserChildSearch] = useState<string>("");
+
   const [createUserError, setCreateUserError] = useState<string>("");
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
 
@@ -119,7 +142,9 @@ export function AdminDashboard() {
   const [showLinkParentModal, setShowLinkParentModal] =
     useState<boolean>(false);
   const [linkParentId, setLinkParentId] = useState<string>("");
+  const [linkParentSearch, setLinkParentSearch] = useState<string>("");
   const [linkStudentId, setLinkStudentId] = useState<string>("");
+  const [linkStudentSearch, setLinkStudentSearch] = useState<string>("");
   const [linkStatusMessage, setLinkStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -131,13 +156,18 @@ export function AdminDashboard() {
   const [className, setClassName] = useState<string>("");
   const [subject, setSubject] = useState<string>("");
   const [roomNumber, setRoomNumber] = useState<string>("");
+  const [meetingTime, setMeetingTime] = useState<string>(
+    "MWF 9:00 AM - 10:00 AM"
+  );
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState<string>("");
   const [createError, setCreateError] = useState<string>("");
   const [isCreating, setIsCreating] = useState<boolean>(false);
 
   // Manage Roster Modal State
   const [rosterClassId, setRosterClassId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const [enrollStudentSearch, setEnrollStudentSearch] = useState<string>("");
   const [rosterMessage, setRosterMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -227,7 +257,114 @@ export function AdminDashboard() {
     [directoryUsers]
   );
 
+  // Filtered options for Create User Modal (attaching Parent to Student or Children to Parent)
+  const filteredCreateUserParents = useMemo(() => {
+    const q = newUserParentSearch.trim().toLowerCase();
+    if (!q) return parentDirectoryOptions;
+    return parentDirectoryOptions.filter((p) => {
+      const full = `${p.first_name} ${p.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q)
+      );
+    });
+  }, [parentDirectoryOptions, newUserParentSearch]);
+
+  const filteredCreateUserChildren = useMemo(() => {
+    const q = newUserChildSearch.trim().toLowerCase();
+    if (!q) return studentDirectoryOptions;
+    return studentDirectoryOptions.filter((s) => {
+      const full = `${s.first_name} ${s.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q)
+      );
+    });
+  }, [studentDirectoryOptions, newUserChildSearch]);
+
+  // Filtered options for Link Parent & Student Modal
+  const filteredLinkParents = useMemo(() => {
+    const q = linkParentSearch.trim().toLowerCase();
+    if (!q) return parentDirectoryOptions;
+    return parentDirectoryOptions.filter((p) => {
+      const full = `${p.first_name} ${p.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q)
+      );
+    });
+  }, [parentDirectoryOptions, linkParentSearch]);
+
+  const filteredLinkStudents = useMemo(() => {
+    const q = linkStudentSearch.trim().toLowerCase();
+    if (!q) return studentDirectoryOptions;
+    return studentDirectoryOptions.filter((s) => {
+      const full = `${s.first_name} ${s.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q)
+      );
+    });
+  }, [studentDirectoryOptions, linkStudentSearch]);
+
+  // Filtered options for Schedule New Class Teacher picker
+  const filteredTeachers = useMemo(() => {
+    const q = teacherSearchQuery.trim().toLowerCase();
+    if (!q) return teachers;
+    return teachers.filter((t) => {
+      const full = `${t.first_name} ${t.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        t.user_id.toLowerCase().includes(q) ||
+        t.email.toLowerCase().includes(q)
+      );
+    });
+  }, [teachers, teacherSearchQuery]);
+
+  // Filtered options for Manage Roster Student picker
+  const filteredEnrollStudents = useMemo(() => {
+    const q = enrollStudentSearch.trim().toLowerCase();
+    if (!q) return allStudents;
+    return allStudents.filter((st) => {
+      const full = `${st.first_name} ${st.last_name}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        st.student_id.toLowerCase().includes(q) ||
+        st.email.toLowerCase().includes(q)
+      );
+    });
+  }, [allStudents, enrollStudentSearch]);
+
   const activeRosterClass = classes.find((c) => c.id === rosterClassId) || null;
+
+  const toggleAttachedChild = (studentId: string) => {
+    setNewUserStudentIds((prev) =>
+      prev.includes(studentId)
+        ? prev.filter((id) => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  const resetCreateUserForm = () => {
+    setNewUserId("");
+    setNewUserFirstName("");
+    setNewUserLastName("");
+    setNewUserEmail("");
+    setNewUserRole("student");
+    setNewUserPassword("");
+    setNewUserParentId("");
+    setNewUserParentSearch("");
+    setNewUserAllergies("");
+    setNewUserEmergencyContact("");
+    setNewUserNotes("");
+    setNewUserStudentIds([]);
+    setNewUserChildSearch("");
+    setCreateUserError("");
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,19 +381,39 @@ export function AdminDashboard() {
       return;
     }
 
+    const normalizedRole = newUserRole.trim().toLowerCase();
     setIsCreatingUser(true);
     try {
+      const payload: Record<string, unknown> = {
+        id: newUserId.trim(),
+        first_name: newUserFirstName.trim(),
+        last_name: newUserLastName.trim(),
+        email: newUserEmail.trim(),
+        role: normalizedRole,
+        password: newUserPassword,
+      };
+
+      if (normalizedRole === "student") {
+        if (newUserParentId.trim()) {
+          payload.parent_id = newUserParentId.trim();
+        }
+        if (newUserAllergies.trim()) {
+          payload.allergies = newUserAllergies.trim();
+        }
+        if (newUserEmergencyContact.trim()) {
+          payload.emergency_contact = newUserEmergencyContact.trim();
+        }
+        if (newUserNotes.trim()) {
+          payload.notes = newUserNotes.trim();
+        }
+      } else if (normalizedRole === "parent" && newUserStudentIds.length > 0) {
+        payload.student_ids = newUserStudentIds;
+      }
+
       const response = await fetch("http://localhost:6769/api/admin/users", {
         method: "POST",
         headers: buildAdminHeaders(),
-        body: JSON.stringify({
-          id: newUserId.trim(),
-          first_name: newUserFirstName.trim(),
-          last_name: newUserLastName.trim(),
-          email: newUserEmail.trim(),
-          role: newUserRole.trim().toLowerCase(),
-          password: newUserPassword,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -265,30 +422,79 @@ export function AdminDashboard() {
         return;
       }
 
-      setDirectoryUsers((prev) => [...prev, data]);
-      if (data.role === "student") {
+      const createdRecord: AdminUserDirectoryRecord = {
+        ...data,
+        linked_parent_id:
+          data.linked_parent_id ??
+          (normalizedRole === "student" ? newUserParentId.trim() : undefined),
+        linked_student_ids:
+          data.linked_student_ids ??
+          (normalizedRole === "parent" ? newUserStudentIds : undefined),
+        allergies:
+          data.allergies ??
+          (normalizedRole === "student" ? newUserAllergies.trim() : undefined),
+        emergency_contact:
+          data.emergency_contact ??
+          (normalizedRole === "student"
+            ? newUserEmergencyContact.trim()
+            : undefined),
+        notes:
+          data.notes ??
+          (normalizedRole === "student" ? newUserNotes.trim() : undefined),
+      };
+
+      setDirectoryUsers((prev) => {
+        const updated = prev.map((u) => {
+          if (
+            normalizedRole === "student" &&
+            newUserParentId.trim() &&
+            u.id === newUserParentId.trim()
+          ) {
+            const existing = u.linked_student_ids || [];
+            return {
+              ...u,
+              linked_student_ids: existing.includes(createdRecord.id)
+                ? existing
+                : [...existing, createdRecord.id],
+            };
+          }
+          if (
+            normalizedRole === "parent" &&
+            newUserStudentIds.includes(u.id)
+          ) {
+            return {
+              ...u,
+              linked_parent_id: createdRecord.id,
+            };
+          }
+          return u;
+        });
+        return [...updated, createdRecord];
+      });
+
+      if (createdRecord.role === "student") {
         setAllStudents((prev) => [
           ...prev,
           {
-            student_id: data.id,
-            internal_id: data.id,
-            first_name: data.first_name,
-            last_name: data.last_name,
-            email: data.email,
+            student_id: createdRecord.id,
+            internal_id: createdRecord.id,
+            first_name: createdRecord.first_name,
+            last_name: createdRecord.last_name,
+            email: createdRecord.email,
           },
         ]);
         setMetrics((prev) =>
           prev ? { ...prev, total_students: prev.total_students + 1 } : prev
         );
-      } else if (data.role === "teacher") {
+      } else if (createdRecord.role === "teacher") {
         setTeachers((prev) => [
           ...prev,
           {
-            id: data.id,
-            user_id: data.id,
-            first_name: data.first_name,
-            last_name: data.last_name,
-            email: data.email,
+            id: createdRecord.id,
+            user_id: createdRecord.id,
+            first_name: createdRecord.first_name,
+            last_name: createdRecord.last_name,
+            email: createdRecord.email,
             role: "teacher",
           },
         ]);
@@ -297,12 +503,7 @@ export function AdminDashboard() {
         );
       }
 
-      setNewUserId("");
-      setNewUserFirstName("");
-      setNewUserLastName("");
-      setNewUserEmail("");
-      setNewUserRole("student");
-      setNewUserPassword("");
+      resetCreateUserForm();
       setShowCreateUserModal(false);
     } catch {
       setCreateUserError("Network error while creating user.");
@@ -366,7 +567,9 @@ export function AdminDashboard() {
         text: `Linked parent (${linkParentId}) to student (${linkStudentId}) successfully.`,
       });
       setLinkParentId("");
+      setLinkParentSearch("");
       setLinkStudentId("");
+      setLinkStudentSearch("");
     } catch {
       setLinkStatusMessage({
         type: "error",
@@ -381,10 +584,19 @@ export function AdminDashboard() {
     e.preventDefault();
     setCreateError("");
 
-    if (!className.trim() || !subject.trim() || !roomNumber.trim() || !selectedTeacherId) {
-      setCreateError("All fields (Class Name, Subject, Room Number, and Teacher) are required.");
+    if (
+      !className.trim() ||
+      !subject.trim() ||
+      !roomNumber.trim() ||
+      !selectedTeacherId
+    ) {
+      setCreateError(
+        "All fields (Class Name, Subject, Room Number, and Teacher) are required."
+      );
       return;
     }
+
+    const finalMeetingTime = meetingTime.trim() || "MWF 9:00 AM - 10:00 AM";
 
     setIsCreating(true);
     try {
@@ -395,6 +607,7 @@ export function AdminDashboard() {
           name: className.trim(),
           subject: subject.trim(),
           room_number: roomNumber.trim(),
+          meeting_time: finalMeetingTime,
           teacher_id: selectedTeacherId,
         }),
       });
@@ -405,14 +618,22 @@ export function AdminDashboard() {
         return;
       }
 
-      setClasses((prev) => [...prev, data]);
+      setClasses((prev) => [
+        ...prev,
+        {
+          ...data,
+          meeting_time: data.meeting_time || finalMeetingTime,
+        },
+      ]);
       setMetrics((prev) =>
         prev ? { ...prev, active_classes: prev.active_classes + 1 } : prev
       );
       setClassName("");
       setSubject("");
       setRoomNumber("");
+      setMeetingTime("MWF 9:00 AM - 10:00 AM");
       setSelectedTeacherId("");
+      setTeacherSearchQuery("");
       setShowCreateModal(false);
     } catch {
       setCreateError("Network error while creating class.");
@@ -466,6 +687,7 @@ export function AdminDashboard() {
         })
       );
       setSelectedStudentId("");
+      setEnrollStudentSearch("");
       setRosterMessage({
         type: "success",
         text: `Enrolled ${data.first_name} ${data.last_name} successfully.`,
@@ -532,315 +754,43 @@ export function AdminDashboard() {
     }
   };
 
+  const showOverview = activeTab === "all" || activeTab === "overview";
+  const showClasses = activeTab === "all" || activeTab === "classes";
+  const showUsers = activeTab === "all" || activeTab === "users";
+
   return (
     <RoleGuard allowedRoles={["admin"]}>
-      <div className="mx-auto max-w-7xl space-y-8 p-6">
-        {/* Header */}
-        <div className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-              School Administration Dashboard
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Monitor school-wide operational KPIs, schedule class sections, assign teachers, and manage student rosters.
-            </p>
-          </div>
-          <Button
-            type="button"
-            onClick={() => {
-              setCreateError("");
-              setShowCreateModal(true);
-            }}
-            className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Create Class
-          </Button>
-        </div>
-
-        {/* School-Wide KPI Metrics Cards */}
-        <section aria-label="School-Wide Overview Metrics">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800">
-            School-Wide Overview Metrics
-          </h2>
-          {loading ? (
-            <div
-              data-testid="metrics-skeleton"
-              className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-            >
-              {[1, 2, 3, 4].map((idx) => (
-                <div
-                  key={idx}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <Skeleton className="mb-3 h-4 w-28" />
-                  <Skeleton className="mb-2 h-8 w-16" />
-                  <Skeleton className="h-3 w-36" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-500">
-                    Total Students
-                  </span>
-                  <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-                    <GraduationCap className="h-5 w-5" />
-                  </div>
-                </div>
-                <p
-                  data-testid="kpi-total-students"
-                  className="mt-3 text-3xl font-bold text-slate-900"
-                >
-                  {metrics?.total_students ?? 0}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Active K–8 enrolled students
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-500">
-                    Total Teachers
-                  </span>
-                  <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-                    <Users className="h-5 w-5" />
-                  </div>
-                </div>
-                <p
-                  data-testid="kpi-total-teachers"
-                  className="mt-3 text-3xl font-bold text-slate-900"
-                >
-                  {metrics?.total_teachers ?? 0}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Assigned instructional faculty
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-500">
-                    Active Classes
-                  </span>
-                  <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
-                    <BookOpen className="h-5 w-5" />
-                  </div>
-                </div>
-                <p
-                  data-testid="kpi-active-classes"
-                  className="mt-3 text-3xl font-bold text-slate-900"
-                >
-                  {metrics?.active_classes ?? classes.length}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Scheduled course sections
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-500">
-                    Today&apos;s Attendance Rate
-                  </span>
-                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                </div>
-                <p
-                  data-testid="kpi-attendance-rate"
-                  className="mt-3 text-3xl font-bold text-emerald-600"
-                >
-                  {metrics?.attendance_rate ?? 0}%
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Present: {metrics?.present_today ?? 0} · Tardy:{" "}
-                  {metrics?.tardy_today ?? 0} · Absent:{" "}
-                  {metrics?.absent_today ?? 0}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {!loading && metrics && (
-            <div
-              data-testid="school-metrics-breakdown"
-              className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3"
-            >
-              <div className="flex flex-col justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Campus Attendance Status
-                </span>
-                <div className="mt-2 flex items-center gap-2">
-                  <span
-                    data-testid="kpi-attendance-status"
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                      metrics.attendance_status === "Healthy" ||
-                      metrics.attendance_rate >= 90
-                        ? "bg-emerald-50 text-emerald-700"
-                        : metrics.attendance_status === "Moderate" ||
-                            metrics.attendance_rate >= 75
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {metrics.attendance_status ||
-                      (metrics.total_recorded_today > 0
-                        ? metrics.attendance_rate >= 90
-                          ? "Healthy"
-                          : "Moderate"
-                        : "No Records Today")}
-                  </span>
-                  <span
-                    data-testid="kpi-total-recorded-today"
-                    className="text-xs text-slate-500"
-                  >
-                    ({metrics.total_recorded_today} logs recorded today)
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Student-to-Teacher Ratio
-                </span>
-                <p
-                  data-testid="kpi-student-teacher-ratio"
-                  className="mt-2 text-lg font-bold text-slate-900"
-                >
-                  {metrics.student_teacher_ratio ??
-                    (metrics.total_teachers > 0
-                      ? Math.round(
-                          (metrics.total_students / metrics.total_teachers) * 10
-                        ) / 10
-                      : 0)}{" "}
-                  : 1
-                </p>
-              </div>
-
-              <div className="flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span className="font-semibold uppercase tracking-wider text-slate-500">
-                    Daily Attendance Breakdown
-                  </span>
-                  <span>{metrics.attendance_rate}% Present/Tardy</span>
-                </div>
-                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{
-                      width: `${Math.min(100, Math.max(0, metrics.attendance_rate))}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Class Scheduling & Teacher Assignment Section */}
-        <section aria-label="Class Scheduling and Teacher Assignment">
-          <div className="mb-4 flex items-center justify-between">
+      <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        {/* Top Command Header */}
+        <div className="rounded-2xl border border-[#679289]/35 bg-white p-6 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
-              <h2 className="text-lg font-semibold text-slate-800">
-                Class Sections & Teacher Assignments
-              </h2>
-              <p className="text-xs text-slate-500">
-                View scheduled classes, assigned instructors, room numbers, and student enrollment rosters.
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f4c095]/45 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#071e22]">
+                <LayoutGrid className="h-3.5 w-3.5 text-[#1d7874]" />
+                Administration Control Center
+              </span>
+              <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-[#071e22]">
+                School Administration Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-[#071e22]/75">
+                Manage school-wide KPIs, onboard students &amp; parents with medical/family profiles, and schedule classes.
               </p>
             </div>
-          </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
-                  <tr>
-                    <th className="px-5 py-3.5">Class Name</th>
-                    <th className="px-5 py-3.5">Subject</th>
-                    <th className="px-5 py-3.5">Room Number</th>
-                    <th className="px-5 py-3.5">Assigned Teacher</th>
-                    <th className="px-5 py-3.5">Enrolled Students</th>
-                    <th className="px-5 py-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {classes.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-5 py-8 text-center text-slate-500"
-                      >
-                        No classes scheduled yet. Click &quot;Create Class&quot; to add a section.
-                      </td>
-                    </tr>
-                  ) : (
-                    classes.map((cls) => (
-                      <tr
-                        key={cls.id}
-                        className="transition-colors hover:bg-slate-50/80"
-                      >
-                        <td className="px-5 py-4 font-semibold text-slate-900">
-                          {cls.name}
-                        </td>
-                        <td className="px-5 py-4 text-slate-600">
-                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                            {cls.subject}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-slate-600">
-                          Room {cls.room_number}
-                        </td>
-                        <td className="px-5 py-4 font-medium text-slate-800">
-                          {cls.teacher_name}
-                        </td>
-                        <td className="px-5 py-4 text-slate-600">
-                          <span className="font-semibold text-slate-900">
-                            {cls.enrolled_count}
-                          </span>{" "}
-                          students
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setRosterMessage(null);
-                              setSelectedStudentId("");
-                              setRosterClassId(cls.id);
-                            }}
-                          >
-                            Manage Roster
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        {/* User Management & Directory Section */}
-        <section aria-labelledby="user-directory-heading" className="space-y-4">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2
-                id="user-directory-heading"
-                className="text-lg font-semibold text-slate-900"
-              >
-                User Management &amp; Directory
-              </h2>
-              <p className="text-xs text-slate-500">
-                Search and filter school accounts by role, onboard new users, and link parents to students.
-              </p>
-            </div>
+            {/* Unified Quick Actions */}
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                data-testid="open-create-user-modal"
+                onClick={() => {
+                  resetCreateUserForm();
+                  setShowCreateUserModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-[#071e22] text-white hover:bg-[#1d7874]"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add User
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -848,7 +798,9 @@ export function AdminDashboard() {
                 onClick={() => {
                   setLinkStatusMessage(null);
                   setLinkParentId("");
+                  setLinkParentSearch("");
                   setLinkStudentId("");
+                  setLinkStudentSearch("");
                   setShowLinkParentModal(true);
                 }}
                 className="flex items-center gap-1.5"
@@ -858,147 +810,521 @@ export function AdminDashboard() {
               </Button>
               <Button
                 type="button"
-                data-testid="open-create-user-modal"
                 onClick={() => {
-                  setCreateUserError("");
-                  setShowCreateUserModal(true);
+                  setCreateError("");
+                  setTeacherSearchQuery("");
+                  setShowCreateModal(true);
                 }}
-                className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800"
+                className="flex items-center gap-2 bg-[#1d7874] text-white hover:bg-[#071e22]"
               >
-                <UserPlus className="h-4 w-4" />
-                Add User
+                <Plus className="h-4 w-4" />
+                Create Class
               </Button>
             </div>
           </div>
 
-          {/* Search & Role Filter Controls */}
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                aria-label="Search Users"
-                data-testid="user-search-input"
-                placeholder="Search by name, email, or ID..."
-                value={userSearchQuery}
-                onChange={(e) => setUserSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="user-role-filter"
-                className="text-xs font-semibold uppercase text-slate-500"
+          {/* Section Navigation Tabs */}
+          <div
+            data-testid="admin-section-tabs"
+            className="mt-6 flex flex-wrap gap-2 border-t border-[#679289]/25 pt-4"
+          >
+            {(
+              [
+                { id: "all", label: "All Sections" },
+                { id: "overview", label: "Overview & Metrics" },
+                {
+                  id: "users",
+                  label: `User Directory (${directoryUsers.length})`,
+                },
+                {
+                  id: "classes",
+                  label: `Class Schedule (${classes.length})`,
+                },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                  activeTab === tab.id
+                    ? "bg-[#1d7874] text-white shadow-xs"
+                    : "bg-[#679289]/15 text-[#071e22] hover:bg-[#f4c095]/45"
+                }`}
               >
-                Role:
-              </label>
-              <select
-                id="user-role-filter"
-                aria-label="Filter by Role"
-                data-testid="user-role-filter"
-                value={userRoleFilter}
-                onChange={(e) => setUserRoleFilter(e.target.value)}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-              >
-                <option value="all">All Roles</option>
-                <option value="student">Students</option>
-                <option value="teacher">Teachers</option>
-                <option value="parent">Parents</option>
-                <option value="admin">Admins</option>
-              </select>
-            </div>
+                {tab.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Directory Table */}
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table
-                data-testid="user-directory-table"
-                className="w-full text-left text-sm"
+        {/* Section 1: School-Wide KPI Metrics Cards */}
+        {showOverview && (
+          <section aria-label="School-Wide Overview Metrics">
+            <h2 className="mb-4 text-lg font-bold text-[#071e22]">
+              School-Wide Overview Metrics
+            </h2>
+            {loading ? (
+              <div
+                data-testid="metrics-skeleton"
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
               >
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
-                  <tr>
-                    <th className="px-5 py-3.5">School ID</th>
-                    <th className="px-5 py-3.5">Full Name</th>
-                    <th className="px-5 py-3.5">Email</th>
-                    <th className="px-5 py-3.5">Role</th>
-                    <th className="px-5 py-3.5">Family / Portal Link</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {filteredDirectoryUsers.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-5 py-8 text-center text-slate-500"
-                      >
-                        No matching user accounts found.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredDirectoryUsers.map((u) => {
-                      const roleLower = u.role.toLowerCase();
-                      let badgeClasses = "bg-slate-100 text-slate-700";
-                      if (roleLower === "student") {
-                        badgeClasses = "bg-blue-50 text-blue-700";
-                      } else if (roleLower === "teacher") {
-                        badgeClasses = "bg-indigo-50 text-indigo-700";
-                      } else if (roleLower === "parent") {
-                        badgeClasses = "bg-amber-50 text-amber-700";
-                      } else if (roleLower === "admin") {
-                        badgeClasses = "bg-emerald-50 text-emerald-700";
-                      }
+                {[1, 2, 3, 4].map((idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm"
+                  >
+                    <Skeleton className="mb-3 h-4 w-28" />
+                    <Skeleton className="mb-2 h-8 w-16" />
+                    <Skeleton className="h-3 w-36" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#071e22]/75">
+                      Total Students
+                    </span>
+                    <div className="rounded-lg bg-[#1d7874]/15 p-2 text-[#1d7874]">
+                      <GraduationCap className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <p
+                    data-testid="kpi-total-students"
+                    className="mt-3 text-3xl font-extrabold text-[#071e22]"
+                  >
+                    {metrics?.total_students ?? 0}
+                  </p>
+                  <p className="mt-1 text-xs text-[#071e22]/70">
+                    Active K–8 enrolled students
+                  </p>
+                </div>
 
-                      return (
+                <div className="rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#071e22]/75">
+                      Total Teachers
+                    </span>
+                    <div className="rounded-lg bg-[#679289]/25 p-2 text-[#071e22]">
+                      <Users className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <p
+                    data-testid="kpi-total-teachers"
+                    className="mt-3 text-3xl font-extrabold text-[#071e22]"
+                  >
+                    {metrics?.total_teachers ?? 0}
+                  </p>
+                  <p className="mt-1 text-xs text-[#071e22]/70">
+                    Assigned instructional faculty
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#071e22]/75">
+                      Active Classes
+                    </span>
+                    <div className="rounded-lg bg-[#f4c095]/45 p-2 text-[#071e22]">
+                      <BookOpen className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <p
+                    data-testid="kpi-active-classes"
+                    className="mt-3 text-3xl font-extrabold text-[#071e22]"
+                  >
+                    {metrics?.active_classes ?? classes.length}
+                  </p>
+                  <p className="mt-1 text-xs text-[#071e22]/70">
+                    Scheduled course sections
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#071e22]/75">
+                      Today&apos;s Attendance Rate
+                    </span>
+                    <div className="rounded-lg bg-[#1d7874] p-2 text-white">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <p
+                    data-testid="kpi-attendance-rate"
+                    className="mt-3 text-3xl font-extrabold text-[#1d7874]"
+                  >
+                    {metrics?.attendance_rate ?? 0}%
+                  </p>
+                  <p className="mt-1 text-xs text-[#071e22]/70">
+                    Present: {metrics?.present_today ?? 0} · Tardy:{" "}
+                    {metrics?.tardy_today ?? 0} · Absent:{" "}
+                    {metrics?.absent_today ?? 0}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!loading && metrics && (
+              <div
+                data-testid="school-metrics-breakdown"
+                className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[#679289]/35 bg-white p-5 shadow-sm md:grid-cols-3"
+              >
+                <div className="flex flex-col justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#071e22]/70">
+                    Campus Attendance Status
+                  </span>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      data-testid="kpi-attendance-status"
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+                        metrics.attendance_status === "Healthy" ||
+                        metrics.attendance_rate >= 90
+                          ? "bg-[#1d7874] text-white"
+                          : metrics.attendance_status === "Moderate" ||
+                              metrics.attendance_rate >= 75
+                            ? "bg-[#f4c095] text-[#071e22]"
+                            : "bg-[#ee2e31]/15 text-[#ee2e31]"
+                      }`}
+                    >
+                      {metrics.attendance_status ||
+                        (metrics.total_recorded_today > 0
+                          ? metrics.attendance_rate >= 90
+                            ? "Healthy"
+                            : "Moderate"
+                          : "No Records Today")}
+                    </span>
+                    <span
+                      data-testid="kpi-total-recorded-today"
+                      className="text-xs text-[#071e22]/70"
+                    >
+                      ({metrics.total_recorded_today} logs recorded today)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#071e22]/70">
+                    Student-to-Teacher Ratio
+                  </span>
+                  <p
+                    data-testid="kpi-student-teacher-ratio"
+                    className="mt-2 text-lg font-extrabold text-[#071e22]"
+                  >
+                    {metrics.student_teacher_ratio ??
+                      (metrics.total_teachers > 0
+                        ? Math.round(
+                            (metrics.total_students / metrics.total_teachers) *
+                              10
+                          ) / 10
+                        : 0)}{" "}
+                    : 1
+                  </p>
+                </div>
+
+                <div className="flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-[#071e22]">
+                    <span className="font-bold uppercase tracking-wider text-[#071e22]/70">
+                      Daily Attendance Breakdown
+                    </span>
+                    <span className="font-semibold">{metrics.attendance_rate}% Present/Tardy</span>
+                  </div>
+                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-[#679289]/25">
+                    <div
+                      className="h-full rounded-full bg-[#1d7874] transition-all"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, metrics.attendance_rate))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Section 2: User Management & Directory Section */}
+        {showUsers && (
+          <section
+            aria-labelledby="user-directory-heading"
+            className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h2
+                  id="user-directory-heading"
+                  className="text-lg font-semibold text-slate-900"
+                >
+                  User Management &amp; Directory
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Search and filter school accounts by role, view student medical/contact notes, and manage parent-child links.
+                </p>
+              </div>
+            </div>
+
+            {/* Search & Role Filter Controls */}
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="text"
+                  aria-label="Search Users"
+                  data-testid="user-search-input"
+                  placeholder="Search by name, email, or ID..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="bg-white pl-9"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="user-role-filter"
+                  className="text-xs font-semibold uppercase text-slate-500"
+                >
+                  Role:
+                </label>
+                <select
+                  id="user-role-filter"
+                  aria-label="Filter by Role"
+                  data-testid="user-role-filter"
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="student">Students</option>
+                  <option value="teacher">Teachers</option>
+                  <option value="parent">Parents</option>
+                  <option value="admin">Admins</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Directory Table */}
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table
+                  data-testid="user-directory-table"
+                  className="w-full text-left text-sm"
+                >
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3.5">School ID</th>
+                      <th className="px-4 py-3.5">Full Name</th>
+                      <th className="px-4 py-3.5">Email</th>
+                      <th className="px-4 py-3.5">Role</th>
+                      <th className="px-4 py-3.5">Family / Portal Link</th>
+                      <th className="px-4 py-3.5">
+                        Medical / Emergency / Notes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredDirectoryUsers.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-5 py-8 text-center text-slate-500"
+                        >
+                          No matching user accounts found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDirectoryUsers.map((u) => {
+                        const roleLower = u.role.toLowerCase();
+                        let badgeClasses = "bg-slate-100 text-slate-700";
+                        if (roleLower === "student") {
+                          badgeClasses = "bg-blue-50 text-blue-700";
+                        } else if (roleLower === "teacher") {
+                          badgeClasses = "bg-indigo-50 text-indigo-700";
+                        } else if (roleLower === "parent") {
+                          badgeClasses = "bg-amber-50 text-amber-700";
+                        } else if (roleLower === "admin") {
+                          badgeClasses = "bg-emerald-50 text-emerald-700";
+                        }
+
+                        return (
+                          <tr
+                            key={u.id}
+                            className="transition-colors hover:bg-slate-50/80"
+                          >
+                            <td className="px-4 py-3.5 font-mono text-xs text-slate-600">
+                              {u.id}
+                            </td>
+                            <td className="px-4 py-3.5 font-semibold text-slate-900">
+                              {u.first_name} {u.last_name}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-600">
+                              {u.email || "—"}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${badgeClasses}`}
+                              >
+                                {u.role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-600">
+                              {roleLower === "student" && u.linked_parent_id ? (
+                                <span className="rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+                                  Parent ID: {u.linked_parent_id}
+                                </span>
+                              ) : roleLower === "parent" &&
+                                u.linked_student_ids &&
+                                u.linked_student_ids.length > 0 ? (
+                                <span className="rounded bg-blue-50 px-2 py-0.5 font-medium text-blue-800">
+                                  Linked Children:{" "}
+                                  {u.linked_student_ids.join(", ")}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-600">
+                              {roleLower === "student" &&
+                              (u.allergies ||
+                                u.emergency_contact ||
+                                u.notes) ? (
+                                <div className="space-y-1">
+                                  {u.allergies && (
+                                    <div className="flex items-center gap-1 text-rose-700">
+                                      <HeartPulse className="h-3 w-3 shrink-0" />
+                                      <span>Allergies: {u.allergies}</span>
+                                    </div>
+                                  )}
+                                  {u.emergency_contact && (
+                                    <div className="flex items-center gap-1 text-slate-700">
+                                      <Phone className="h-3 w-3 shrink-0" />
+                                      <span>
+                                        Emergency: {u.emergency_contact}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {u.notes && (
+                                    <div className="flex items-center gap-1 text-slate-500">
+                                      <FileText className="h-3 w-3 shrink-0" />
+                                      <span>Note: {u.notes}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section 3: Class Scheduling & Teacher Assignment Section */}
+        {showClasses && (
+          <section
+            aria-label="Class Scheduling and Teacher Assignment"
+            className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">
+                  Class Sections &amp; Teacher Assignments
+                </h2>
+                <p className="text-xs text-slate-500">
+                  View scheduled classes, meeting times, assigned instructors, room numbers, and student enrollment rosters.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
+                    <tr>
+                      <th className="px-5 py-3.5">Class Name</th>
+                      <th className="px-5 py-3.5">Subject</th>
+                      <th className="px-5 py-3.5">Room &amp; Schedule</th>
+                      <th className="px-5 py-3.5">Assigned Teacher</th>
+                      <th className="px-5 py-3.5">Enrolled Students</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {classes.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-5 py-8 text-center text-slate-500"
+                        >
+                          No classes scheduled yet. Click &quot;Create Class&quot; to add a section.
+                        </td>
+                      </tr>
+                    ) : (
+                      classes.map((cls) => (
                         <tr
-                          key={u.id}
+                          key={cls.id}
                           className="transition-colors hover:bg-slate-50/80"
                         >
-                          <td className="px-5 py-3.5 font-mono text-xs text-slate-600">
-                            {u.id}
+                          <td className="px-5 py-4 font-semibold text-slate-900">
+                            {cls.name}
                           </td>
-                          <td className="px-5 py-3.5 font-semibold text-slate-900">
-                            {u.first_name} {u.last_name}
-                          </td>
-                          <td className="px-5 py-3.5 text-slate-600">
-                            {u.email || "—"}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${badgeClasses}`}
-                            >
-                              {u.role}
+                          <td className="px-5 py-4 text-slate-600">
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                              {cls.subject}
                             </span>
                           </td>
-                          <td className="px-5 py-3.5 text-xs text-slate-600">
-                            {roleLower === "student" && u.linked_parent_id ? (
-                              <span className="rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
-                                Parent ID: {u.linked_parent_id}
-                              </span>
-                            ) : roleLower === "parent" &&
-                              u.linked_student_ids &&
-                              u.linked_student_ids.length > 0 ? (
-                              <span className="rounded bg-blue-50 px-2 py-0.5 font-medium text-blue-800">
-                                Linked Children: {u.linked_student_ids.join(", ")}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
+                          <td className="px-5 py-4 text-slate-600">
+                            <div>Room {cls.room_number}</div>
+                            {cls.meeting_time && (
+                              <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                                <Clock className="h-3 w-3" />
+                                {cls.meeting_time}
+                              </div>
                             )}
                           </td>
+                          <td className="px-5 py-4 font-medium text-slate-800">
+                            {cls.teacher_name}
+                          </td>
+                          <td className="px-5 py-4 text-slate-600">
+                            <span className="font-semibold text-slate-900">
+                              {cls.enrolled_count}
+                            </span>{" "}
+                            students
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setRosterMessage(null);
+                                setSelectedStudentId("");
+                                setEnrollStudentSearch("");
+                                setRosterClassId(cls.id);
+                              }}
+                            >
+                              Manage Roster
+                            </Button>
+                          </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Create User Modal */}
         {showCreateUserModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
               <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-lg font-bold text-slate-900">
                   Create New User Account
@@ -1064,41 +1390,43 @@ export function AdminDashboard() {
                   />
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="new-user-id"
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                  >
-                    School ID (Optional)
-                  </label>
-                  <Input
-                    id="new-user-id"
-                    aria-label="School ID (Optional)"
-                    placeholder="Auto-generated if left blank"
-                    value={newUserId}
-                    onChange={(e) => setNewUserId(e.target.value)}
-                  />
-                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="new-user-id"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      School ID (Optional)
+                    </label>
+                    <Input
+                      id="new-user-id"
+                      aria-label="School ID (Optional)"
+                      placeholder="Auto-generated if blank"
+                      value={newUserId}
+                      onChange={(e) => setNewUserId(e.target.value)}
+                    />
+                  </div>
 
-                <div>
-                  <label
-                    htmlFor="new-user-role"
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                  >
-                    User Role
-                  </label>
-                  <select
-                    id="new-user-role"
-                    aria-label="User Role"
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="parent">Parent</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <div>
+                    <label
+                      htmlFor="new-user-role"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      User Role
+                    </label>
+                    <select
+                      id="new-user-role"
+                      aria-label="User Role"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="student">Student</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="parent">Parent</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -1117,6 +1445,194 @@ export function AdminDashboard() {
                     onChange={(e) => setNewUserPassword(e.target.value)}
                   />
                 </div>
+
+                {/* Student Role Specific Fields: Attach Parent, Allergies, Emergency Contact, Notes */}
+                {newUserRole === "student" && (
+                  <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-blue-800">
+                      Student Profile: Parent Link, Medical &amp; Notes
+                    </h4>
+
+                    <div>
+                      <label
+                        htmlFor="new-user-parent-search"
+                        className="mb-1 block text-xs font-semibold text-slate-700"
+                      >
+                        Attach Parent (Search by Name or ID)
+                      </label>
+                      <Input
+                        id="new-user-parent-search"
+                        aria-label="Search Parent to Attach"
+                        placeholder="Type parent name or ID..."
+                        value={newUserParentSearch}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewUserParentSearch(val);
+                          const exact = parentDirectoryOptions.find(
+                            (p) =>
+                              p.id.toLowerCase() === val.trim().toLowerCase() ||
+                              `${p.first_name} ${p.last_name}`.toLowerCase() ===
+                                val.trim().toLowerCase()
+                          );
+                          if (exact) {
+                            setNewUserParentId(exact.id);
+                          }
+                        }}
+                        className="mb-1.5 bg-white"
+                      />
+                      <select
+                        id="new-user-parent-select"
+                        aria-label="Attach Parent Account"
+                        value={newUserParentId}
+                        onChange={(e) => setNewUserParentId(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      >
+                        <option value="">No parent attached yet</option>
+                        {filteredCreateUserParents.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.first_name} {p.last_name} (ID: {p.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="new-user-allergies"
+                        className="mb-1 block text-xs font-semibold text-slate-700"
+                      >
+                        Allergies
+                      </label>
+                      <Input
+                        id="new-user-allergies"
+                        aria-label="Allergies"
+                        placeholder="e.g. Peanuts, Dairy, Penicillin (or None)"
+                        value={newUserAllergies}
+                        onChange={(e) => setNewUserAllergies(e.target.value)}
+                        className="bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="new-user-emergency-contact"
+                        className="mb-1 block text-xs font-semibold text-slate-700"
+                      >
+                        Emergency Contact Info
+                      </label>
+                      <Input
+                        id="new-user-emergency-contact"
+                        aria-label="Emergency Contact Info"
+                        placeholder="e.g. Patty Parent • (555) 234-5678"
+                        value={newUserEmergencyContact}
+                        onChange={(e) =>
+                          setNewUserEmergencyContact(e.target.value)
+                        }
+                        className="bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="new-user-notes"
+                        className="mb-1 block text-xs font-semibold text-slate-700"
+                      >
+                        Student Notes
+                      </label>
+                      <Input
+                        id="new-user-notes"
+                        aria-label="Student Notes"
+                        placeholder="e.g. Car rider, front row seating"
+                        value={newUserNotes}
+                        onChange={(e) => setNewUserNotes(e.target.value)}
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Parent Role Specific Fields: Attach Children (Students) */}
+                {newUserRole === "parent" && (
+                  <div className="space-y-3 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                      Attach Children (Students)
+                    </h4>
+                    <div>
+                      <label
+                        htmlFor="new-user-child-search"
+                        className="mb-1 block text-xs font-semibold text-slate-700"
+                      >
+                        Search Student by Name or ID
+                      </label>
+                      <Input
+                        id="new-user-child-search"
+                        aria-label="Search Children to Attach"
+                        placeholder="Type student name or ID..."
+                        value={newUserChildSearch}
+                        onChange={(e) => setNewUserChildSearch(e.target.value)}
+                        className="bg-white"
+                      />
+                    </div>
+
+                    {newUserStudentIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {newUserStudentIds.map((sid) => {
+                          const st = studentDirectoryOptions.find(
+                            (s) => s.id === sid
+                          );
+                          return (
+                            <span
+                              key={sid}
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900"
+                            >
+                              {st
+                                ? `${st.first_name} ${st.last_name} (${sid})`
+                                : sid}
+                              <button
+                                type="button"
+                                onClick={() => toggleAttachedChild(sid)}
+                                className="ml-1 text-amber-700 hover:text-amber-950"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                      {filteredCreateUserChildren.length === 0 ? (
+                        <p className="p-2.5 text-center text-xs text-slate-400">
+                          No matching students found.
+                        </p>
+                      ) : (
+                        filteredCreateUserChildren.map((st) => {
+                          const isChecked = newUserStudentIds.includes(st.id);
+                          return (
+                            <label
+                              key={st.id}
+                              className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs hover:bg-slate-50"
+                            >
+                              <span className="font-medium text-slate-800">
+                                {st.first_name} {st.last_name}{" "}
+                                <span className="text-slate-400">
+                                  (ID: {st.id})
+                                </span>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleAttachedChild(st.id)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                              />
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {createUserError && (
                   <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-600">
@@ -1171,6 +1687,25 @@ export function AdminDashboard() {
                   >
                     Parent Account
                   </label>
+                  <Input
+                    aria-label="Type Parent Name or ID"
+                    placeholder="Type parent name or ID to search..."
+                    value={linkParentSearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLinkParentSearch(val);
+                      const exact = parentDirectoryOptions.find(
+                        (p) =>
+                          p.id.toLowerCase() === val.trim().toLowerCase() ||
+                          `${p.first_name} ${p.last_name}`.toLowerCase() ===
+                            val.trim().toLowerCase()
+                      );
+                      if (exact) {
+                        setLinkParentId(exact.id);
+                      }
+                    }}
+                    className="mb-1.5"
+                  />
                   <select
                     id="link-parent-select"
                     aria-label="Select Parent Account"
@@ -1179,7 +1714,7 @@ export function AdminDashboard() {
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                   >
                     <option value="">Choose a parent...</option>
-                    {parentDirectoryOptions.map((p) => (
+                    {filteredLinkParents.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.first_name} {p.last_name} (ID: {p.id})
                       </option>
@@ -1194,6 +1729,25 @@ export function AdminDashboard() {
                   >
                     Student Account
                   </label>
+                  <Input
+                    aria-label="Type Student Name or ID"
+                    placeholder="Type student name or ID to search..."
+                    value={linkStudentSearch}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLinkStudentSearch(val);
+                      const exact = studentDirectoryOptions.find(
+                        (s) =>
+                          s.id.toLowerCase() === val.trim().toLowerCase() ||
+                          `${s.first_name} ${s.last_name}`.toLowerCase() ===
+                            val.trim().toLowerCase()
+                      );
+                      if (exact) {
+                        setLinkStudentId(exact.id);
+                      }
+                    }}
+                    className="mb-1.5"
+                  />
                   <select
                     id="link-student-select"
                     aria-label="Select Student Account"
@@ -1202,7 +1756,7 @@ export function AdminDashboard() {
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                   >
                     <option value="">Choose a student...</option>
-                    {studentDirectoryOptions.map((s) => (
+                    {filteredLinkStudents.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.first_name} {s.last_name} (ID: {s.id})
                       </option>
@@ -1278,35 +1832,53 @@ export function AdminDashboard() {
                   />
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="admin-class-subject"
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                  >
-                    Subject
-                  </label>
-                  <Input
-                    id="admin-class-subject"
-                    aria-label="Subject"
-                    placeholder="e.g. Mathematics"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="admin-class-subject"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      Subject
+                    </label>
+                    <Input
+                      id="admin-class-subject"
+                      aria-label="Subject"
+                      placeholder="e.g. Mathematics"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="admin-room-number"
+                      className="mb-1 block text-sm font-medium text-slate-700"
+                    >
+                      Room Number
+                    </label>
+                    <Input
+                      id="admin-room-number"
+                      aria-label="Room Number"
+                      placeholder="e.g. 204B"
+                      value={roomNumber}
+                      onChange={(e) => setRoomNumber(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label
-                    htmlFor="admin-room-number"
+                    htmlFor="admin-meeting-time"
                     className="mb-1 block text-sm font-medium text-slate-700"
                   >
-                    Room Number
+                    Meeting Time
                   </label>
                   <Input
-                    id="admin-room-number"
-                    aria-label="Room Number"
-                    placeholder="e.g. 204B"
-                    value={roomNumber}
-                    onChange={(e) => setRoomNumber(e.target.value)}
+                    id="admin-meeting-time"
+                    aria-label="Meeting Time"
+                    placeholder="e.g. MWF 9:00 AM - 10:00 AM"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
                   />
                 </div>
 
@@ -1317,6 +1889,26 @@ export function AdminDashboard() {
                   >
                     Assigned Teacher
                   </label>
+                  <Input
+                    aria-label="Type Teacher Name or ID"
+                    placeholder="Type teacher name or ID to search..."
+                    value={teacherSearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTeacherSearchQuery(val);
+                      const exact = teachers.find(
+                        (t) =>
+                          t.user_id.toLowerCase() ===
+                            val.trim().toLowerCase() ||
+                          `${t.first_name} ${t.last_name}`.toLowerCase() ===
+                            val.trim().toLowerCase()
+                      );
+                      if (exact) {
+                        setSelectedTeacherId(exact.user_id);
+                      }
+                    }}
+                    className="mb-1.5"
+                  />
                   <select
                     id="admin-teacher-select"
                     aria-label="Assigned Teacher"
@@ -1325,7 +1917,7 @@ export function AdminDashboard() {
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                   >
                     <option value="">Select a teacher...</option>
-                    {teachers.map((t) => (
+                    {filteredTeachers.map((t) => (
                       <option key={t.user_id} value={t.user_id}>
                         {t.first_name} {t.last_name} (ID: {t.user_id})
                       </option>
@@ -1384,40 +1976,56 @@ export function AdminDashboard() {
                 </button>
               </div>
 
-              <form
-                onSubmit={handleEnrollStudent}
-                className="mb-5 flex items-end gap-2"
-              >
-                <div className="flex-1">
-                  <label
-                    htmlFor="enroll-student-select"
-                    className="mb-1 block text-xs font-semibold uppercase text-slate-600"
-                  >
-                    Enroll Student in Class
-                  </label>
+              <form onSubmit={handleEnrollStudent} className="mb-5 space-y-2">
+                <label
+                  htmlFor="enroll-student-select"
+                  className="block text-xs font-semibold uppercase text-slate-600"
+                >
+                  Enroll Student in Class
+                </label>
+                <Input
+                  aria-label="Type Student to Enroll"
+                  placeholder="Type student name or ID to filter..."
+                  value={enrollStudentSearch}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEnrollStudentSearch(val);
+                    const exact = allStudents.find(
+                      (st) =>
+                        st.student_id.toLowerCase() ===
+                          val.trim().toLowerCase() ||
+                        `${st.first_name} ${st.last_name}`.toLowerCase() ===
+                          val.trim().toLowerCase()
+                    );
+                    if (exact) {
+                      setSelectedStudentId(exact.student_id);
+                    }
+                  }}
+                />
+                <div className="flex items-center gap-2">
                   <select
                     id="enroll-student-select"
                     aria-label="Select Student to Enroll"
                     value={selectedStudentId}
                     onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                   >
                     <option value="">Choose a student...</option>
-                    {allStudents.map((st) => (
+                    {filteredEnrollStudents.map((st) => (
                       <option key={st.student_id} value={st.student_id}>
                         {st.first_name} {st.last_name} (ID: {st.student_id})
                       </option>
                     ))}
                   </select>
+                  <Button
+                    type="submit"
+                    disabled={isUpdatingRoster}
+                    className="flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Enroll Student
+                  </Button>
                 </div>
-                <Button
-                  type="submit"
-                  disabled={isUpdatingRoster}
-                  className="flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Enroll Student
-                </Button>
               </form>
 
               {rosterMessage && (

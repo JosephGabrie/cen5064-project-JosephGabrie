@@ -6,6 +6,7 @@ import CreateAssignmentForm from './CreateAssignmentForm';
 test('renders form fields correctly', () => {
   render(<CreateAssignmentForm />);
   
+  expect(screen.getByLabelText(/assignment name/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/class id/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
   expect(screen.getByText(/assignment type/i)).toBeInTheDocument();

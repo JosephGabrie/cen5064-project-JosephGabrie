@@ -209,3 +209,43 @@ Each AI critique block details:
   - Added `if err := rows.Err(); err != nil` checks immediately after every `for rows.Next()` loop (including `getClassSubmissions()`, `getUserSubmissions()`, `getClassAssignments()`, `getUserAssignments()`, and all attendance, class, and admin queries) so mid-stream connection drops return `500 Internal Server Error` instead of silently returning truncated `200 OK` slices.
 - **End-to-End Class Portal Connectivity (`frontend/app/class/[classId]/`)**:
   - Connected `ClassroomAttendanceManager` to `frontend/app/class/[classId]/attendance/page.tsx`, wired live announcements (`GET` & `POST /api/classes/:classId/announcements`) into `frontend/app/class/[classId]/announcements/page.tsx`, and connected the Class Overview dashboard in `frontend/app/class/[classId]/page.tsx`.
+
+---
+
+## 10. Post-Review UX, Schema & Workflow Fixes (Simple Critique Summary)
+
+1. **Admin User Creation & Family/Medical Attachments**
+   - **Tried:** Creating students and parents with only basic login fields and requiring a separate modal with plain `<select>` dropdowns to link parents and students afterward.
+   - **Failed because:** Admins could not attach parents, allergies, emergency contact info, or notes during student creation, could not attach children during parent creation, and plain dropdowns do not scale to hundreds of users.
+   - **Ended up doing:** Added `allergies`, `emergency_contact`, and `notes` to `public.students`, supported immediate parent/child attachment in `POST /api/admin/users`, and added type-to-search inputs (by name or ID) across all user/parent/student selectors to fix the mistake.
+
+2. **Class Scheduling `meeting_time` Not-Null Constraint & Admin Layout**
+   - **Tried:** Executing `INSERT INTO public.class (class_name, subject, room_number, teacher_id)` without `meeting_time` and stacking all admin tables in a single cluttered view.
+   - **Failed because:** PostgreSQL threw `ERROR: null value in column "meeting_time" of relation "class" violates not-null constraint (SQLSTATE 23502)` and the admin page structure was hard to navigate.
+   - **Ended up doing:** Added `meeting_time` to `AdminClassSection`, the class creation modal, and the `INSERT` statement, added type-to-search for teachers, and reorganized `AdminDashboard.tsx` with a unified header and section navigation tabs to fix the mistake.
+
+3. **Attendance Role Visibility & Draggable Seating Chart**
+   - **Tried:** Allowing students to view the Attendance page and using `<select>` dropdowns on every desk instead of drag-and-drop.
+   - **Failed because:** Attendance should only be viewable by teachers and parents, and dropdowns on every desk were clunky.
+   - **Ended up doing:** Restricted attendance navigation and page access to teachers, parents, and admins, and implemented HTML5 drag-and-drop seating (from the student roster pool onto desks and desk-to-desk swapping) to fix the mistake.
+
+4. **Add Question Button Placement & Student Names in Submissions**
+   - **Tried:** Putting `+ Add Question` at the top of the questions container and showing `Student ID: {sub.student_id}` in the submissions view.
+   - **Failed because:** Teachers had to scroll back up to add questions instead of clicking above `Publish Assignment`, and student IDs were shown instead of student names.
+   - **Ended up doing:** Moved `+ Add Question` directly above `Publish Assignment` and joined `public.users` on submission queries (plus a frontend roster name map) to display student full names to fix the mistake.
+
+5. **Class Grades & Feedback Hierarchy**
+   - **Tried:** Displaying a flat list of submissions on the Class Grades & Feedback page without student grouping or teacher review feedback.
+   - **Failed because:** Users needed to see students with their overall grades first, then click a student's name to view their assignments and optional written review feedback at the bottom.
+   - **Ended up doing:** Added `teacher_feedback` to `public.submissions` and restructured `grades/page.tsx` into `Students with Overall Grades -> Click Student Name -> Student's Assignments & Optional Teacher Review Feedback` to fix the mistake.
+
+6. **Repeated Route Fetches on Sidebar Click**
+   - **Tried:** Allowing `<Link>` clicks in `app-sidebar.tsx` to re-navigate even when `pathname === item.url`.
+   - **Failed because:** Clicking "Assignments" multiple times triggered repeated `GET /class/1/assignments 200` requests.
+   - **Ended up doing:** Added an active-route click guard (`if (isActive) e.preventDefault()`) in `app-sidebar.tsx` to fix the mistake.
+
+7. **Assignment Name in Creation & Calendar Events**
+   - **Tried:** Creating assignments without an assignment name field and rendering `Class 1 Due` in the calendar.
+   - **Failed because:** Assignments had no `title` attribute, making calendar events generic (`Class 1 Due`).
+   - **Ended up doing:** Added `title` to `public.assignments` and `CreateAssignmentForm.tsx`, and updated `calendar/page.tsx` and class pages to display the assignment name to fix the mistake.
+

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Lock } from "lucide-react";
 
 export function SignInPage() {
   const { login } = useAuth();
@@ -18,68 +19,72 @@ export function SignInPage() {
     setIsLoading(true);
 
     const result = await login(identifier, password);
-    
+
     if (!result.success) {
       setError(result.error || "Failed to sign in");
       setIsLoading(false);
     }
-    // If successful, the auth context will update and the layout/router should handle the redirect or re-render
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
-      <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-2xl shadow-lg border border-slate-100">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4 shadow-sm">
-            <svg
-              className="w-8 h-8 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              ></path>
-            </svg>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#f8fbfa] p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl border border-[#679289]/35 bg-white p-6 sm:p-8 shadow-md">
+        <div className="mb-8 text-center">
+          <div
+            aria-hidden="true"
+            className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1d7874] text-white shadow-sm"
+          >
+            <Lock className="h-8 w-8" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
-          <p className="text-slate-500">Sign in to your MTV School account</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#071e22]">
+            Welcome Back
+          </h1>
+          <p className="mt-2 text-sm font-medium text-[#071e22]/70">
+            Sign in to your MTV School portal account
+          </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-600 text-center">
+          <div
+            role="alert"
+            className="mb-6 rounded-lg border border-[#ee2e31]/40 bg-[#ee2e31]/10 p-4 text-center text-sm font-semibold text-[#ee2e31]"
+          >
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-slate-700">
-              Identifier (Email or ID)
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-2">
+            <label
+              htmlFor="signin-identifier"
+              className="block text-sm font-semibold text-[#071e22]"
+            >
+              Identifier (Email or School ID)
             </label>
             <Input
+              id="signin-identifier"
               type="text"
               placeholder="you@example.com or 123456"
               required
-              className="w-full"
+              className="h-10 w-full border-[#679289]/50 text-[#071e22]"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               disabled={isLoading}
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-slate-700">
+          <div className="space-y-2">
+            <label
+              htmlFor="signin-password"
+              className="block text-sm font-semibold text-[#071e22]"
+            >
               Password
             </label>
             <Input
+              id="signin-password"
               type="password"
               placeholder="••••••••"
               required
-              className="w-full"
+              className="h-10 w-full border-[#679289]/50 text-[#071e22]"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
@@ -87,8 +92,9 @@ export function SignInPage() {
           </div>
           <Button
             type="submit"
+            size="lg"
             disabled={isLoading}
-            className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-base font-semibold shadow-sm transition-all"
+            className="w-full bg-[#1d7874] text-white hover:bg-[#071e22] text-base font-bold shadow-sm"
           >
             {isLoading ? "Signing In..." : "Sign In"}
           </Button>

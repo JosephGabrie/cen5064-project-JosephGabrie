@@ -21,11 +21,14 @@ CREATE TABLE IF NOT EXISTS public.teachers (
     user_id BIGINT NOT NULL UNIQUE REFERENCES public.users("ID") ON DELETE CASCADE
 );
 
--- 3. Students Profile Table (with optional Parent linkage)
+-- 3. Students Profile Table (with optional Parent linkage & medical/contact metadata)
 CREATE TABLE IF NOT EXISTS public.students (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE REFERENCES public.users("ID") ON DELETE CASCADE,
-    parent_id BIGINT REFERENCES public.users("ID") ON DELETE SET NULL
+    parent_id BIGINT REFERENCES public.users("ID") ON DELETE SET NULL,
+    allergies TEXT DEFAULT '',
+    emergency_contact TEXT DEFAULT '',
+    notes TEXT DEFAULT ''
 );
 
 -- 4. Classes Table
@@ -34,7 +37,8 @@ CREATE TABLE IF NOT EXISTS public.class (
     class_name TEXT NOT NULL,
     subject TEXT NOT NULL,
     teacher_id BIGINT REFERENCES public.teachers(id) ON DELETE SET NULL,
-    room_number INT NOT NULL DEFAULT 0
+    room_number TEXT NOT NULL DEFAULT '0',
+    meeting_time TEXT NOT NULL DEFAULT 'TBD'
 );
 
 -- 5. Class Enrollments Table
@@ -49,6 +53,7 @@ CREATE TABLE IF NOT EXISTS public.enrollments (
 CREATE TABLE IF NOT EXISTS public.assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     class_id TEXT NOT NULL,
+    title TEXT DEFAULT '',
     questions JSONB,
     file TEXT,
     due_date TIMESTAMPTZ NOT NULL
@@ -61,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
     student_id TEXT NOT NULL,
     assignment_id UUID REFERENCES public.assignments(id) ON DELETE CASCADE,
     grade TEXT,
+    teacher_feedback TEXT DEFAULT '',
     student_answer JSONB,
     date_submitted TIMESTAMPTZ NOT NULL
 );
